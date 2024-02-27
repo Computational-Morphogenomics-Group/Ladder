@@ -4,9 +4,11 @@
 # TODO: Add more
 
 
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
+import torch
+from torch.utils.data import DataLoader, Dataset
+
+
 ########################################
 
 
@@ -44,16 +46,9 @@ def generate_simulated_data(d, t, n, p_deg=0, c_s=1, a_s=1, idx_s=1, e_m=0, e_s=
 
     Examples
     --------
-
-    >>> import syngen
-    >>> syngen.generate_simulated_data(2,2,2)
-    (array([[[ 0.18126027,  0.65219774],
-        [ 1.30571011, -0.55590506]],
-       [[-0.50006976, -1.141606  ],
-        [ 1.46194153,  0.54011249]]]), array([[0.29394387],
-       [0.72274433]]))
     
     """
+    n *= 2 
     data = np.zeros((n, t, d))
 
     if linear:
@@ -82,3 +77,74 @@ def generate_simulated_data(d, t, n, p_deg=0, c_s=1, a_s=1, idx_s=1, e_m=0, e_s=
         data[i, :, :] = np.concatenate([index, poly_terms], axis=1) + noise
             
     return data, poly_coeffs
+
+
+
+
+
+
+class SyntheticDataset(Dataset):
+    """
+    Dataset object to use with generated points.
+    """
+    def __init__(self, dat_lib,  num_classes=None, transform=None, target_transform=lambda x : x.double()):
+        self.dat_lib = dat_lib
+        
+        if num_classes:
+            assert num_classes >= self.dat_lib.shape[0]
+            self.labels = torch.tensor(np.array([[0]*i + [1] + [0]*(num_classes-1-i) for i in range(num_classes)]))  # Generate one hot encoding for all classes
+
+        else:
+            self.labels = torch.tensor(np.array([[0]*i + [1] + [0]*(self.dat_lib.shape[0]-1-i) for i in range(self.dat_lib.shape[0])]))  # Generate one hot encoding for all classes
+
+            
+        self.matched_dat = [(elem, self.labels[i]) for i in range(self.dat_lib.shape[0]) for elem in self.dat_lib[i]] # Match encodings to classes and flatten dataset
+        self.transform = transform
+        self.target_transform = target_transform
+
+    def __len__(self):
+        return len(self.matched_dat)
+
+    def __getitem__(self, idx):
+
+        if isinstance(idx, slice):
+            start, stop, step = idx.start, idx.stop, idx.step            
+            vector, label = torch.vstack([elem[0] for elem in self.matched_dat[start:stop:step]]), torch.vstack([elem[1] for elem in self.matched_dat[start:stop:step]])
+        
+        else:
+            vector, label = self.matched_dat[idx]
+        
+        if self.transform:
+            vector = self.transform(vector)
+        
+        if self.target_transform:
+            label = self.target_transform(label)
+
+        return vector, label
+
+
+
+
+def make_lin_pol_dataset(*args, **kwargs):
+    """
+    Make dataset object and return with loaders.
+    """
+    n_samples = args[2]
+    batch_size = kwargs.get("batch_size", 2**4)
+
+    
+    data, _ = generate_simulated_data(*args, **kwargs)
+
+    data = np.einsum("ijk -> jik", data)
+    
+    
+    dat_lib_train, dat_lib_test = torch.tensor(data[:,:n_samples,:]), torch.tensor(data[:,n_samples:n_samples*2,:]) 
+
+    # Prepare loaders
+    train_dataset = SyntheticDataset(dat_lib_train)
+    test_dataset = SyntheticDataset(dat_lib_test)
+
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+
+    return train_dataset, train_dataloader, test_dataset, test_dataloader
