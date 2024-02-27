@@ -145,6 +145,6 @@ def make_lin_pol_dataset(*args, **kwargs):
     test_dataset = SyntheticDataset(dat_lib_test)
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_dataset, train_dataloader, test_dataset, test_dataloader
