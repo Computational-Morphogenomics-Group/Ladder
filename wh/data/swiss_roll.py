@@ -23,7 +23,7 @@ def make_swiss_roll_dataset(samples=1e4, batch_size=32):
     train_set = utils.TensorDataset(train_set_x_tensor, train_set_y_tensor)
     train_dataloader = utils.DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
-    x_test, manifold_x_test = make_swiss_roll(n_samples=10000)
+    x_test, manifold_x_test = make_swiss_roll(n_samples=samples)
     x_test = x_test.astype(np.float32)
     y_test = (x_test[:, 0:1] >= 10).astype(np.float32)
 
