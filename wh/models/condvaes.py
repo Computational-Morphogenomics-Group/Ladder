@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.distributions as dists
 import torch.nn.functional as F
 from .basics import MLP
+import numpy as np
 
 
 #================================================================================================
@@ -219,14 +220,14 @@ class CSVAE_fixed_prior(nn.Module):
     """
 
     # Define Params
-    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, mlp_hidden=64, mlp_hidden_count=3, w_mus=[0,3], w_stds=[0.1,1] betas=[20,1,0.2,10,1]):
-        super(CSVAE, self).__init__()
+    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, mlp_hidden=64, mlp_hidden_count=3, w_mus=[0,3], w_stds=[0.1,1], betas=[20,1,0.2,10,1]):
+        super(CSVAE_fixed_prior, self).__init__()
         
         # Define latent sizes
         self.x_size, self.y_size, self.xy_size, self.z_size, self.w_size, self.single_w_size = input_size, label_size, input_size + label_size, common_latent_size, weighted_latent_size*label_size, weighted_latent_size
 
         # Define additional hyperparams
-        self.betas self.w_mus, self.w_stds = betas, w_mus, w_stds
+        self.betas, self.w_mus, self.w_stds = betas, w_mus, w_stds
         
         
         # Encoding
