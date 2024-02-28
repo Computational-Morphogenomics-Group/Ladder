@@ -175,7 +175,7 @@ class CSVAE(nn.Module):
 
 
 
-    # Generation - IN DEV
+    # Generation
     def generate(self, x, y, hard_latent=False):
         
         # Map data to Z
@@ -373,7 +373,7 @@ class CSVAE_fixed_prior(nn.Module):
 
 
 
-    # Generation - IN DEV
+    # Generation
     def generate(self, x, y, hard_latent=False):
         
         # Map data to Z
@@ -507,7 +507,7 @@ class CondVAE_Info(nn.Module):
     def loss(self, x, y):
         
         # Run model 
-        x_mu, x_logvar, zw, y_pred, \
+        x_mu, x_logvar, zy, y_pred, \
         z_mu, z_logvar = self.forward(x,y)
 
 
@@ -536,7 +536,153 @@ class CondVAE_Info(nn.Module):
 
 
 
-    # Generation - IN DEV
+    # Generation
+    def generate(self, x, y):
+        
+        # Map data to Z
+        z_latent = self.z_latent(x)
+        z_mu = self.mu_z(z_latent)
+        z_logvar = self.logvar_z(z_latent)
+        z = self.reparam(z_mu, z_logvar)
+
+      
+
+        # Concat vectors and decode
+        zy = torch.cat([z, y], dim=1)
+        x_mu, x_logvar = self.zy_x(zy)
+        x_gen = self.reparam(x_mu, x_logvar)
+        
+        return x_gen, y
+
+
+
+#================================================================================================
+#================================================================================================
+#================================================================================================
+#================================================================================================
+#================================================================================================
+#================================================================================================
+
+
+
+class CondVAE(nn.Module):
+    """
+    Classical conditional VAE.
+    """
+
+    # Define Params
+    def __init__(self, input_size=3, label_size=2, latent_size=2, mlp_hidden=64, mlp_hidden_count=3, betas=[20,0.2]):
+        super(CondVAE, self).__init__()
+        
+        # Define latent sizes
+        self.x_size, self.y_size, self.z_size = input_size, label_size, latent_size
+
+        # Define additional hyperparams
+        self.betas = betas
+        
+        
+        # Encoding
+        
+        ## Z variational params
+        self.z_latent = MLP(input_size=self.x_size + self.y_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size)
+        self.mu_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size)
+        self.logvar_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size)
+
+
+        
+        # Decoding
+        
+        ## Reconstruction variational params
+        self.x_latent = MLP(input_size=self.z_size + self.y_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size+self.y_size)
+        self.mu_x = MLP(input_size=self.z_size + self.y_size, hidden_sizes=[self.z_size + self.y_size]*mlp_hidden_count, output_size=self.x_size)
+        self.logvar_x = MLP(input_size=self.z_size + self.y_size, hidden_sizes=[self.z_size + self.y_size]*mlp_hidden_count, output_size=self.x_size)
+        
+
+    
+    # Latent generation
+    def xy_z(self, xy):
+    
+        # Generate z params
+        z_latent = self.z_latent(xy)
+        z_mu = self.mu_z(z_latent)
+        z_logvar = self.logvar_z(z_latent)
+
+        
+        return z_mu, z_logvar
+
+
+    
+    # Reconstruction
+    def zy_x(self, zy):
+
+        # Generate x params
+        x_latent = self.x_latent(zy)
+        mu_x = self.mu_x(x_latent)
+        logvar_x = self.logvar_x(x_latent)
+        
+        return mu_x, logvar_x
+    
+    
+    # Reparam Trick
+    @staticmethod
+    def reparam(mu, logvar):
+        
+        std = logvar.mul(0.5).exp_()            
+        eps = torch.DoubleTensor(std.size()).normal_().to(mu.device)
+        return eps.mul(std).add_(mu)
+
+    
+    
+    # Run model
+    def forward(self, x, y):
+
+        # Calculate variational params
+        xy = torch.cat([x, y], dim=1)
+        z_mu, z_logvar = self.xy_z(xy)
+
+
+        # Calculate reparam vectors
+        z = self.reparam(z_mu, z_logvar)
+        zy = torch.cat([z, y], dim=1)
+    
+        x_mu, x_logvar = self.zy_x(zy)
+        
+
+        return x_mu, x_logvar, zy, \
+               z_mu, z_logvar
+
+    
+
+    # Loss to be minimized = M1 + M2
+    def loss(self, x, y):
+        
+        # Run model 
+        x_mu, x_logvar, zy, \
+        z_mu, z_logvar = self.forward(x,y)
+
+
+        # Get loss components
+        
+        ## ELBO
+        ### X reconstruction
+        x_recon_loss = F.mse_loss(x_mu, x) * self.betas[0]
+
+        ### KL Div - Z - Prior N(0,I)
+        z_obs_dist = dists.MultivariateNormal(z_mu.flatten(), torch.diag(z_logvar.flatten().exp()))
+        z_prior_dist = dists.MultivariateNormal(torch.zeros(self.z_size * z_mu.size()[0]).to(x.device), torch.eye(self.z_size * z_mu.size()[0]).to(x.device)) # Might need to change this if not batching
+        z_kl = dists.kl.kl_divergence(z_obs_dist, z_prior_dist) * self.betas[1]
+
+        
+        # Combine 
+        M1_M2 = x_recon_loss + z_kl
+
+
+        return M1_M2, x_recon_loss, z_kl
+        
+
+
+
+    # Generation
     def generate(self, x, y):
         
         # Map data to Z
