@@ -130,7 +130,7 @@ def make_lin_pol_dataset(*args, **kwargs):
     Make dataset object and return with loaders.
     """
     n_samples = args[2]
-    batch_size = kwargs.get("batch_size", 2**4)
+    batch_size = kwargs.get("batch_size", 2**5)
 
     
     data, _ = generate_simulated_data(*args, **kwargs)
@@ -148,3 +148,29 @@ def make_lin_pol_dataset(*args, **kwargs):
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_dataset, train_dataloader, test_dataset, test_dataloader
+
+
+
+
+def plot_lin_pol_dataset_2d(dataset, src=None, dest=None, ax=None):
+    """
+    Helper to visualize dataset.
+    """
+
+    l_size = len(dataset[0][1])
+    n = len(dataset) // l_size
+
+    if not ax:
+        to_plot = plt
+
+    else:
+        to_plot = ax
+    
+    to_plot.scatter(dataset[:][0][:,0], dataset[:][0][:,1], alpha=0.3, c=[[i]*n for i in range(l_size)])
+    
+   
+    if src is not None and dest is not None:
+        src_points, dest_points = dataset[src*n : (src+1)*n], dataset[dest*n : (dest+1)*n]
+        to_plot.scatter(src_points[:][0][:,0], src_points[:][0][:,1], alpha=1, c="red")
+        to_plot.scatter(dest_points[:][0][:,0], dest_points[:][0][:,1], alpha=1, c="cyan")
+
