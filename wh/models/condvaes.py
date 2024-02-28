@@ -416,11 +416,11 @@ class CondVAE_Info(nn.Module):
     """
 
     # Define Params
-    def __init__(self, input_size=3, label_size=2, common_latent_size=2, mlp_hidden=64, mlp_hidden_count=3, betas=[20,0.2,10,1]):
-        super(CSVAE, self).__init__()
+    def __init__(self, input_size=3, label_size=2, latent_size=2, mlp_hidden=64, mlp_hidden_count=3, betas=[20,0.2,10,1]):
+        super(CondVAE_Info, self).__init__()
         
         # Define latent sizes
-        self.x_size, self.y_size, self.xy_size, self.z_size = input_size, label_size, input_size + label_size, common_latent_size
+        self.x_size, self.y_size, self.z_size = input_size, label_size, latent_size
 
         # Define additional hyperparams
         self.betas = betas
@@ -438,9 +438,9 @@ class CondVAE_Info(nn.Module):
         # Decoding
         
         ## Reconstruction variational params
-        self.x_latent = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size+self.w_size)
-        self.mu_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size + self.w_size]*mlp_hidden_count, output_size=self.x_size)
-        self.logvar_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size + self.w_size]*mlp_hidden_count, output_size=self.x_size)
+        self.x_latent = MLP(input_size=self.z_size + self.y_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size+self.y_size)
+        self.mu_x = MLP(input_size=self.z_size + self.y_size, hidden_sizes=[self.z_size + self.y_size]*mlp_hidden_count, output_size=self.x_size)
+        self.logvar_x = MLP(input_size=self.z_size + self.y_size, hidden_sizes=[self.z_size + self.y_size]*mlp_hidden_count, output_size=self.x_size)
         
         ## Mutual information minimizer 
         self.z_y = MLP(input_size=self.z_size, hidden_sizes=([self.z_size]*2) + ([mlp_hidden]*mlp_hidden_count), output_size=self.y_size, final_activation=nn.Sigmoid())
@@ -448,7 +448,7 @@ class CondVAE_Info(nn.Module):
 
     
     # Latent generation
-    def x_z(self, x, y):
+    def x_z(self, x):
     
         # Generate z params
     
@@ -486,7 +486,7 @@ class CondVAE_Info(nn.Module):
     def forward(self, x, y):
 
         # Calculate variational params
-        z_mu, z_logvar = self.xy_zw(x, y)
+        z_mu, z_logvar = self.x_z(x)
 
 
         # Calculate reparam vectors
@@ -504,7 +504,7 @@ class CondVAE_Info(nn.Module):
     
 
     # Loss to be minimized = M1 + M2
-    def M1_M2(self, x, y):
+    def loss(self, x, y):
         
         # Run model 
         x_mu, x_logvar, zw, y_pred, \
