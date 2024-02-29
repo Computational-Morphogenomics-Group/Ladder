@@ -99,23 +99,23 @@ class MLP(nn.Module):
     )
 
     """
-    def __init__(self, input_size, hidden_sizes=[256,256], output_size=32, final_activation=None, gain=1):
+    def __init__(self, input_size, hidden_sizes=[256,256], output_size=32, final_activation=None, bias=True, gain=1):
         super(MLP, self).__init__()
 
         # To keep all hidden layers
         self.fc_layers = nn.ModuleList()
 
         # Input to hidden layers
-        self.fc_layers.append(nn.Linear(input_size, hidden_sizes[0]))
+        self.fc_layers.append(nn.Linear(input_size, hidden_sizes[0], bias=bias))
         self.fc_layers.append(nn.ReLU())
         
         # Between hidden layers
         for i in range(1, len(hidden_sizes)):
-            self.fc_layers.append(nn.Linear(hidden_sizes[i-1], hidden_sizes[i]))
+            self.fc_layers.append(nn.Linear(hidden_sizes[i-1], hidden_sizes[i], bias=bias))
             self.fc_layers.append(nn.ReLU())
 
         # Hidden to output
-        self.fc_layers.append(nn.Linear(hidden_sizes[-1], output_size))
+        self.fc_layers.append(nn.Linear(hidden_sizes[-1], output_size, bias=bias))
 
         # Init layers
         for layer in self.fc_layers:

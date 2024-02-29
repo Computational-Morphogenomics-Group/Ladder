@@ -26,8 +26,14 @@ class CSVAE(nn.Module):
     """
 
     # Define Params
-    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, mlp_hidden=64, mlp_hidden_count=3, betas=[20,1,0.2,10,1]):
+    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, enc_sizes=None, dec_sizes=None, mlp_hidden=64, mlp_hidden_count=3, mlp_bias=False, betas=[20,1,0.2,10,1]):
         super(CSVAE, self).__init__()
+
+        if enc_sizes is None:
+            enc_sizes = [mlp_hidden]*mlp_hidden_count
+
+        if dec_sizes is None:
+            dec_sizes = [mlp_hidden]*mlp_hidden_count
         
         # Define latent sizes
         self.x_size, self.y_size, self.xy_size, self.z_size, self.w_size, self.single_w_size = input_size, label_size, input_size + label_size, common_latent_size, weighted_latent_size*label_size, weighted_latent_size
@@ -39,30 +45,30 @@ class CSVAE(nn.Module):
         # Encoding
         
         ## W variational params
-        self.w_latent = MLP(input_size=self.xy_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.w_size)
-        self.mu_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size)
-        self.logvar_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size)
+        self.w_latent = MLP(input_size=self.xy_size, hidden_sizes=enc_sizes, output_size=self.w_size, bias=mlp_bias)
+        self.mu_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size, bias=mlp_bias)
+        self.logvar_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size, bias=mlp_bias)
         
         ## Z variational params
-        self.z_latent = MLP(input_size=self.x_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size)
-        self.mu_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size)
-        self.logvar_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size)
+        self.z_latent = MLP(input_size=self.x_size, hidden_sizes=enc_sizes, output_size=self.z_size, bias=mlp_bias)
+        self.mu_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size, bias=mlp_bias)
+        self.logvar_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size, bias=mlp_bias)
 
         ## W prior variational params
-        self.w_prior = MLP(input_size=self.y_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.w_size)
-        self.mu_w_prior = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size)
-        self.logvar_w_prior = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size)
+        self.w_prior = MLP(input_size=self.y_size, hidden_sizes=enc_sizes, output_size=self.w_size, bias=mlp_bias)
+        self.mu_w_prior = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size, bias=mlp_bias)
+        self.logvar_w_prior = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size, bias=mlp_bias)
         
         
         # Decoding
         
         ## Reconstruction variational params
-        self.x_latent = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size+self.w_size)
-        self.mu_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size+self.w_size]*mlp_hidden_count, output_size=self.x_size)
-        self.logvar_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size+self.w_size]*mlp_hidden_count, output_size=self.x_size)
+        self.x_latent = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size + self.w_size]*mlp_hidden_count, output_size=self.z_size+self.w_size, bias=mlp_bias)
+        self.mu_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=dec_sizes, output_size=self.x_size, bias=mlp_bias)
+        self.logvar_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=dec_sizes, output_size=self.x_size, bias=mlp_bias)
         
         ## Mutual information minimizer 
-        self.z_y = MLP(input_size=self.z_size, hidden_sizes=([self.z_size]*2) + ([mlp_hidden]*mlp_hidden_count), output_size=self.y_size, final_activation=nn.Sigmoid())
+        self.z_y = MLP(input_size=self.z_size, hidden_sizes=([self.z_size]*2) + ([mlp_hidden]*mlp_hidden_count), output_size=self.y_size, final_activation=nn.Sigmoid(), bias=mlp_bias)
 
 
     
@@ -114,7 +120,7 @@ class CSVAE(nn.Module):
     
     
     # Run model
-    def forward(self, x, y):
+    def calc_interim(self, x, y):
 
         # Calculate variational params
         w_mu, w_logvar, w_prior_mu, w_prior_logvar, z_mu, z_logvar = self.xy_zw(x, y)
@@ -137,12 +143,12 @@ class CSVAE(nn.Module):
     
 
     # Loss to be minimized = M1 + M2
-    def M1_M2(self, x, y):
+    def forward(self, x, y):
         
         # Run model 
         x_mu, x_logvar, zw, y_pred, \
         w_mu, w_logvar, w_prior_mu,  \
-        w_prior_logvar, z_mu, z_logvar = self.forward(x,y)
+        w_prior_logvar, z_mu, z_logvar = self.calc_interim(x,y)
 
 
         # Get loss components
@@ -311,7 +317,7 @@ class CSVAE_fixed_prior(nn.Module):
     
     
     # Run model
-    def forward(self, x, y):
+    def calc_interim(self, x, y):
 
         # Calculate variational params
         w_mu, w_logvar, z_mu, z_logvar = self.xy_zw(x, y)
@@ -335,12 +341,12 @@ class CSVAE_fixed_prior(nn.Module):
     
 
     # Loss to be minimized = M1 + M2
-    def M1_M2(self, x, y):
+    def forward(self, x, y):
         
         # Run model 
         x_mu, x_logvar, zw, y_pred, \
         w_mu, w_logvar, w_prior_mu,  \
-        w_prior_logvar, z_mu, z_logvar = self.forward(x,y)
+        w_prior_logvar, z_mu, z_logvar = self.calc_interim(x,y)
 
 
         # Get loss components
@@ -483,7 +489,7 @@ class CondVAE_Info(nn.Module):
     
     
     # Run model
-    def forward(self, x, y):
+    def calc_interim(self, x, y):
 
         # Calculate variational params
         z_mu, z_logvar = self.x_z(x)
@@ -504,11 +510,11 @@ class CondVAE_Info(nn.Module):
     
 
     # Loss to be minimized = M1 + M2
-    def loss(self, x, y):
+    def forward(self, x, y):
         
         # Run model 
         x_mu, x_logvar, zy, y_pred, \
-        z_mu, z_logvar = self.forward(x,y)
+        z_mu, z_logvar = self.calc_interim(x,y)
 
 
         # Get loss components
@@ -634,7 +640,7 @@ class CondVAE(nn.Module):
     
     
     # Run model
-    def forward(self, x, y):
+    def calc_interim(self, x, y):
 
         # Calculate variational params
         xy = torch.cat([x, y], dim=1)
@@ -654,11 +660,11 @@ class CondVAE(nn.Module):
     
 
     # Loss to be minimized = M1 + M2
-    def loss(self, x, y):
+    def forward(self, x, y):
         
         # Run model 
         x_mu, x_logvar, zy, \
-        z_mu, z_logvar = self.forward(x,y)
+        z_mu, z_logvar = self.calc_interim(x,y)
 
 
         # Get loss components
