@@ -99,7 +99,7 @@ class MLP(nn.Module):
     )
 
     """
-    def __init__(self, input_size, hidden_sizes=[256,256], output_size=32, final_activation=None, bias=True, gain=1):
+    def __init__(self, input_size, hidden_sizes=[256,256], output_size=32, final_activation=None, bias=True, gain=0.1):
         super(MLP, self).__init__()
 
         # To keep all hidden layers
