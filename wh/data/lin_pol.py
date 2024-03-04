@@ -130,7 +130,9 @@ def make_lin_pol_dataset(*args, **kwargs):
     Make dataset object and return with loaders.
     """
     n_samples = args[2]
-    batch_size = kwargs.get("batch_size", 2**5)
+    batch_size = kwargs.pop("batch_size", 2**5)
+    num_workers= kwargs.pop("num_workers", 1)
+
 
     
     data, _ = generate_simulated_data(*args, **kwargs)
@@ -144,8 +146,8 @@ def make_lin_pol_dataset(*args, **kwargs):
     train_dataset = SyntheticDataset(dat_lib_train)
     test_dataset = SyntheticDataset(dat_lib_test)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
 
     return train_dataset, train_dataloader, test_dataset, test_dataloader
 

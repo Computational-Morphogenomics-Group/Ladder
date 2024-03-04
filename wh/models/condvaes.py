@@ -26,7 +26,7 @@ class CSVAE(nn.Module):
     """
 
     # Define Params
-    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, enc_sizes=None, dec_sizes=None, mlp_hidden=64, mlp_hidden_count=3, mlp_bias=False, betas=[20,1,0.2,10,1]):
+    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, enc_sizes=None, dec_sizes=None, mlp_hidden=64, mlp_hidden_count=3, mlp_bias=True, betas=[20,1,0.2,10,1]):
         super(CSVAE, self).__init__()
 
         if enc_sizes is None:
@@ -155,7 +155,8 @@ class CSVAE(nn.Module):
         
         ## ELBO
         ### X reconstruction
-        x_recon_loss = F.mse_loss(x_mu, x) * self.betas[0]
+        x_recon = self.reparam(x_mu, x_logvar)
+        x_recon_loss = F.mse_loss(x_recon, x) * self.betas[0]
 
         ### KL Div - W 
         w_obs_dist = dists.MultivariateNormal(w_mu.flatten(), torch.diag(w_logvar.flatten().exp()))
@@ -226,8 +227,14 @@ class CSVAE_fixed_prior(nn.Module):
     """
 
     # Define Params
-    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, mlp_hidden=64, mlp_hidden_count=3, w_mus=[0,3], w_stds=[0.1,1], betas=[20,1,0.2,10,1]):
+    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, enc_sizes=None, dec_sizes=None, mlp_hidden=64, mlp_hidden_count=3, w_mus=[0,3], w_stds=[0.1,1], betas=[20,1,0.2,10,1], mlp_bias=True):
         super(CSVAE_fixed_prior, self).__init__()
+
+        if enc_sizes is None:
+            enc_sizes = [mlp_hidden]*mlp_hidden_count
+
+        if dec_sizes is None:
+            dec_sizes = [mlp_hidden]*mlp_hidden_count
         
         # Define latent sizes
         self.x_size, self.y_size, self.xy_size, self.z_size, self.w_size, self.single_w_size = input_size, label_size, input_size + label_size, common_latent_size, weighted_latent_size*label_size, weighted_latent_size
@@ -239,25 +246,25 @@ class CSVAE_fixed_prior(nn.Module):
         # Encoding
         
         ## W variational params
-        self.w_latent = MLP(input_size=self.xy_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.w_size)
-        self.mu_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size)
-        self.logvar_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size)
+        self.w_latent = MLP(input_size=self.xy_size, hidden_sizes=enc_sizes, output_size=self.w_size, bias=mlp_bias)
+        self.mu_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size, bias=mlp_bias)
+        self.logvar_w = MLP(input_size=self.w_size, hidden_sizes=[self.w_size]*mlp_hidden_count, output_size=self.w_size, bias=mlp_bias)
         
         ## Z variational params
-        self.z_latent = MLP(input_size=self.x_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size)
-        self.mu_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size)
-        self.logvar_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size)
+        self.z_latent = MLP(input_size=self.x_size, hidden_sizes=enc_sizes, output_size=self.z_size, bias=mlp_bias)
+        self.mu_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size, bias=mlp_bias)
+        self.logvar_z = MLP(input_size=self.z_size, hidden_sizes=[self.z_size]*mlp_hidden_count, output_size=self.z_size, bias=mlp_bias)
 
         
         # Decoding
         
         ## Reconstruction variational params
-        self.x_latent = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size+self.w_size)
-        self.mu_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size+self.w_size]*mlp_hidden_count, output_size=self.x_size)
-        self.logvar_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size+self.w_size]*mlp_hidden_count, output_size=self.x_size)
+        self.x_latent = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[mlp_hidden]*mlp_hidden_count, output_size=self.z_size+self.w_size, bias=mlp_bias)
+        self.mu_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=dec_sizes, output_size=self.x_size, bias=mlp_bias)
+        self.logvar_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=dec_sizes, output_size=self.x_size, bias=mlp_bias)
         
         ## Mutual information minimizer 
-        self.z_y = MLP(input_size=self.z_size, hidden_sizes=([self.z_size]*2) + ([mlp_hidden]*mlp_hidden_count), output_size=self.y_size, final_activation=nn.Sigmoid())
+        self.z_y = MLP(input_size=self.z_size, hidden_sizes=([self.z_size]*2) + ([mlp_hidden]*mlp_hidden_count), output_size=self.y_size, final_activation=nn.Sigmoid(), bias=mlp_bias)
 
 
     
