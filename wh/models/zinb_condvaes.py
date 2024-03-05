@@ -7,6 +7,8 @@ import torch, os, sys, time
 import torch.nn as nn
 
 import torch.distributions as dists
+from torch.distributions import NegativeBinomial
+from pyro.distributions.zero_inflated import ZeroInflatedNegativeBinomial
 import torch.nn.functional as F
 from .basics import MLP
 import numpy as np
@@ -22,9 +24,11 @@ import numpy as np
 
 class ZINB_CSVAE(nn.Module):
 
-    "CSVAE, learned prior, ZINB reconstruction."
+    """
+    CSVAE, learned prior, ZINB reconstruction.
+    """
     
-    def __init__(self, input_size=3, label_size=2, common_latent_size=2, weighted_latent_size=2, enc_sizes=None, dec_sizes=None, mlp_hidden=64, mlp_hidden_count=3, mlp_bias=True, betas=[20,1,0.2,10,1], distribution='zinb'):
+    def __init__(self, input_size=2000, label_size=5, common_latent_size=10, weighted_latent_size=2, enc_sizes=None, dec_sizes=None, mlp_hidden=32, mlp_hidden_count=2, mlp_bias=True, betas=[1, 1, 0.1, 1, 1], distribution='zinb'):
         
         super(ZINB_CSVAE, self).__init__()
 
@@ -64,7 +68,7 @@ class ZINB_CSVAE(nn.Module):
         ## Reconstruction variational params
         self.x_latent = MLP(input_size=self.z_size + self.w_size, hidden_sizes=[self.z_size + self.w_size]*mlp_hidden_count, output_size=self.z_size+self.w_size, bias=mlp_bias)
         self.mu_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=dec_sizes, output_size=self.x_size, bias=mlp_bias)
-        self.logits_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=dec_sizes, output_size=self.x_size, final_activation=nn.Softplus(), bias=mlp_bias)
+        self.logits_x = MLP(input_size=self.z_size + self.w_size, hidden_sizes=dec_sizes, output_size=self.x_size, bias=mlp_bias)
 
         ## ZINB theta (kept in log)
         self.log_theta = torch.nn.Parameter(torch.randn(self.x_size))
@@ -81,16 +85,16 @@ class ZINB_CSVAE(nn.Module):
         xy = torch.cat([x, y], dim=1)
 
         # Generate w and z params
-        w_latent = self.w_latent(xy)
+        w_latent = F.softplus(self.w_latent(xy))
         w_mu = self.mu_w(w_latent)
         w_logvar = self.logvar_w(w_latent)
 
     
-        z_latent = self.z_latent(x)
+        z_latent = F.softplus(self.z_latent(x))
         z_mu = self.mu_z(z_latent)
         z_logvar = self.logvar_z(z_latent)
 
-        w_prior_latent = self.w_prior(y)
+        w_prior_latent = F.softplus(self.w_prior(y))
         w_prior_mu = self.mu_w_prior(w_prior_latent)
         w_prior_logvar = self.logvar_w_prior(w_prior_latent)
     
@@ -112,7 +116,7 @@ class ZINB_CSVAE(nn.Module):
     def zw_x(self, zw):
 
         # Generate x params
-        x_latent = self.x_latent(zw)
+        x_latent = F.softplus(self.x_latent(zw))
         mu_x = torch.exp(self.mu_x(x_latent))
         dropout_logits_x = self.logits_x(x_latent)
         
@@ -156,7 +160,7 @@ class ZINB_CSVAE(nn.Module):
         ## ELBO
         ### X reconstruction - ZINB
         theta = self.log_theta.exp()
-        nb_logits = (x_mu+1e-12).log() - (theta+1e-12).log()
+        nb_logits = (x_mu+1e-5).log() - (theta+1e-5).log()
         
         if self.distribution == 'zinb':
             distribution = ZeroInflatedNegativeBinomial(total_count=theta, logits=nb_logits, gate_logits = x_dropout_logits, validate_args=False)
@@ -195,3 +199,9 @@ class ZINB_CSVAE(nn.Module):
 #================================================================================================
 #================================================================================================
 #================================================================================================
+
+class ZINB_CSVAE_fixed_prior(nn.Module):
+    """
+    CSVAE, fixed prior, ZINB reconstruction.
+    """
+    
