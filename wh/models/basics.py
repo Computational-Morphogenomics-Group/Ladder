@@ -4,8 +4,16 @@
 
 import torch
 import torch.nn as nn
+from torch.nn.functional import softplus, softmax
 from pyro.distributions.util import broadcast_shape
 from typing import Literal
+from pyro.optim import MultiStepLR
+import torch.optim as opt
+from pyro.infer import SVI, config_enumerate, TraceEnum_ELBO
+from tqdm import tqdm
+import numpy as np
+
+
 
 
 def save_model(model, file_path):
@@ -142,7 +150,7 @@ class MLP(nn.Module):
 
 
 
-## Helpers taken from https://pyro.ai/examples/scanvi.html
+## Next 3 helpers taken from https://pyro.ai/examples/scanvi.html
 
 def split_in_half(t):
     """
@@ -172,14 +180,59 @@ def make_fc(dims):
     return nn.Sequential(*layers[:-1])
 
 
-def make_func(in_dims, hidden_dims, out_dims, last_config : Literal["default", "+lognormal", "reparam"] = "default", dist_config : Literal["normal", "zinb", "categorical", "normal+lognormal", "classifier"] = "normal"):
+# Helper to make functions between variables
+class make_func(nn.Module):
     """
     Helper to construct NN functions
     """
+
+    ## Forwards for different configs
+    def zinb_forward(self, inputs):
+        gate_logits, mu = split_in_half(self.fc(inputs))
+        mu = softmax(mu, dim=-1)
+                
+        return gate_logits, mu
+
     
-    def __init__(self, in_dims, hidden_dims, out_dim):
+    def classifier_forward(self, inputs):
+        logits = self.fc(inputs)
+        return logits
+
+
+    def normal_forward(self, inputs):
+ 
+        ## Pre-conditions below
+                
+        # With broadcast
+        #z2_y = broadcast_inputs([z2, y])
+        #z2_y = torch.cat(z2_y, dim=-1)
+
+        # Without broadcast
+        #inputs = torch.cat([z1, y], dim=-1) must be satisfied
+            
+        _inputs= inputs.reshape(-1, inputs.size(-1))
+        hidden = self.fc(_inputs)
+        hidden = hidden.reshape(inputs.shape[:-1] + hidden.shape[-1:])
+                
+        loc, scale = split_in_half(hidden)
+        scale = softplus(scale)
+                
+        return loc, scale
+
+    def nl_forward(self, inputs):
+        inputs = torch.log(1 + inputs)
+        h1, h2 = split_in_half(self.fc(inputs))
+                
+        norm_loc, norm_scale = h1[..., :-1], softplus(h2[..., :-1])
+        l_loc, l_scale = h1[..., -1:], softplus(h2[..., -1:])
+                
+        return norm_loc, norm_scale, l_loc, l_scale
+    
+    
+    def __init__(self, in_dims, hidden_dims, out_dim, last_config : Literal["default", "+lognormal", "reparam"] = "default", dist_config : Literal["normal", "zinb", "categorical", "normal+lognormal", "classifier"] = "normal"):
         super().__init__()
 
+        # Layer configurations
         match last_config:
 
             case "default": # Last will be 2*out for easy reparam
@@ -190,54 +243,78 @@ def make_func(in_dims, hidden_dims, out_dims, last_config : Literal["default", "
 
             case "reparam":
                 dims = [in_dims] + hidden_dims + [2 * out_dim]
-                
-        self.fc = make_fc(dims)
 
-    def forward(self, inputs):
-        
+        # Forward configurations
         match dist_config:
             case "zinb": # For decoders
-                gate_logits, mu = split_in_half(self.fc(inputs))
-                mu = softmax(mu, dim=-1)
-                
-                return gate_logits, mu
+                f_func = self.zinb_forward
 
             case "classifier": # For discriminators
-                logits = self.fc(inputs)
-                return logits
+                f_func = self.classifier_forward
 
             case "normal": # For count precursors 
-                ## Pre-conditions below
-                
-                # With broadcast
-                #z2_y = broadcast_inputs([z2, y])
-                #z2_y = torch.cat(z2_y, dim=-1)
-
-                # Without broadcast
-                #inputs = torch.cat([z1, y], dim=-1) must be satisfied
-            
-                _inputs= inputs.reshape(-1, inputs.size(-1))
-                hidden = self.fc(_inputs)
-                hidden = hidden.reshape(inputs.shape[:-1] + hidden.shape[-1:])
-                
-                loc, scale = split_in_half(hidden)
-                scale = softplus(scale)
-                
-                return loc, scale
+                f_func = self.normal_forward
 
             case "+lognormal": # For counts
-                inputs = torch.log(1 + inputs)
-                h1, h2 = split_in_half(self.fc(inputs))
+                f_func = self.nl_forward
                 
-                norm_loc, norm_scale = h1[..., :-1], softplus(h2[..., :-1])
-                l_loc, l_scale = h1[..., -1:], softplus(h2[..., -1:])
-                
-                return z2_loc, z2_scale, l_loc, l_scale
+        self.fc = make_fc(dims)
+        self.forward = f_func
 
-      
+
+# Helper to get device
+def get_device():
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
                   
-                    
-                    
+# Helper to train Pyro models            
+def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 4e-4, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}):
+    
+    model = model.double().to(device)
+    scheduler = MultiStepLR(optim_args.copy())
+    guide = config_enumerate(model.guide, "parallel", expand=True)
+    elbo = TraceEnum_ELBO(strict_enumeration_warning=False)
+    svi = SVI(model.model, guide, scheduler, elbo)
+
+
+
+    loss_track_test, loss_track_train = [], []
+
+    if verbose:
+        num_epochs = range(num_epochs)
+    else:
+        num_epochs = tqdm(range(num_epochs))
+
+    for epoch in num_epochs:
+        losses = []
+        losses_test = []
+
+        model.train()
+    
+        for x, y in train_loader:
+            x, y = x.to(device), y.to(device)
+            loss = svi.step(x, y)
+            losses.append(loss)
+
+    
+        model.eval()
+        with torch.no_grad(): 
+            for x,y in test_loader:
+                x, y = x.to(device), y.to(device)
+                test_loss = elbo.loss(model.model, model.guide, x,y)
+                losses_test.append(test_loss)
+            
+
+    
+        scheduler.step()
+
+        if verbose:
+            print(f"Epoch : {epoch} || Train Loss: {np.mean(losses).round(5)} || Test Loss: {np.mean(losses_test).round(5)}")
+
+    loss_track_train.append(np.mean(losses))
+    loss_track_test.append(np.mean(losses_test))
+
+    return model, loss_track_train, loss_track_test
                 
 
 

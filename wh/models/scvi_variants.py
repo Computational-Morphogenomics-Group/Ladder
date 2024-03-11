@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch.nn.functional import softplus, softmax
 from torch.distributions import constraints
 
 import pyro
@@ -8,6 +7,7 @@ import pyro.distributions as dist
 import pyro.poutine as poutine
 
 from.basics import broadcast_inputs, make_func
+import numpy as np
 
 
 
@@ -47,7 +47,7 @@ class SCANVI(nn.Module):
         self.x_decoder = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
         self.z2l_encoder = make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
         self.classifier = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_labels, last_config="default", dist_config="classifier")
-        self.z1_encoder = make_func(in_dims=self.num_labels + self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="default", dist_config="normal")
+        self.z1_encoder = make_func(in_dims=self.num_labels + self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
         
 
         self.epsilon = 0.006
@@ -65,7 +65,7 @@ class SCANVI(nn.Module):
             y = pyro.sample("y", dist.OneHotCategorical(logits=x.new_zeros(self.num_labels)), obs=y)
 
             z1_y = torch.cat([z1, y], dim=-1)
-            z2_loc, z2_scale = self.z2_decoder(z1, y)
+            z2_loc, z2_scale = self.z2_decoder(z1_y)
             z2 = pyro.sample("z2", dist.Normal(z2_loc, z2_scale).to_event(1))
             
             
@@ -98,11 +98,22 @@ class SCANVI(nn.Module):
             classification_loss = y_dist.log_prob(y)
             pyro.factor("classification_loss", -self.alpha * classification_loss, has_rsample=False)
 
-             z2_y = broadcast_inputs([z2, y])
+            z2_y = broadcast_inputs([z2, y])
             z2_y = torch.cat(z2_y, dim=-1)
             z1_loc, z1_scale = self.z1_encoder(z2_y)
             pyro.sample("z1", dist.Normal(z1_loc, z1_scale).to_event(1))
 
+
+    # Save self
+    def save(self, path="scanvi_params"):
+        torch.save(self.state_dict(), path + "_torch.pth")
+        pyro.get_param_store().save(path + "_pyro.pth")
+
+
+    # Load
+    def load(self, path="scanvi_params"):
+        self.load_state_dict(torch.load(path))
+        pyro.get_param_store().load(path + "_pyro.pth")
 
 #================================================================================================
 #================================================================================================
@@ -126,7 +137,7 @@ class CSSCVI(nn.Module):
         return torch.tensor(np.array([np.concatenate([[ref_list[num]]*dim for num in elem]) for elem in idxs])).type_as(labels).to(labels.device)
 
     
-    def __init__(self, num_genes, num_labels, l_loc, l_scale, w_loc=[0,3], w_scale=[0.1,1], w_dim=10, len_attrs=[3,2]
+    def __init__(self, num_genes, num_labels, l_loc, l_scale, w_loc=[0,3], w_scale=[0.1,1], w_dim=10, len_attrs=[3,2],
                  latent_dim=10, num_layers=1, hidden_dim=128, alpha=0.01, scale_factor=1.0):
 
         
@@ -157,7 +168,7 @@ class CSSCVI(nn.Module):
         self.classifier_w_y2 = make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[1], last_config="default", dist_config="classifier")
         
         self.z_encoder = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.w_encoder = make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
+        self.w_encoder = make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
 
         self.epsilon = 0.006
 
@@ -233,6 +244,7 @@ class CSSCVI(nn.Module):
             pyro.factor("classification_loss", -self.alpha * classification_loss_w, has_rsample=False)
 
 
+    
     # Function to move points between conditions
     @torch.no_grad()
     def generate(self, x, y):
@@ -274,6 +286,18 @@ class CSSCVI(nn.Module):
         x_rec = pyro.sample("x", x_dist.to_event(1))
 
         return x_rec
+
+
+    # Save self
+    def save(self, path="csscvi_params"):
+        torch.save(self.state_dict(), path + "_torch.pth")
+        pyro.get_param_store().save(path + "_pyro.pth")
+
+
+    # Load
+    def load(self, path="csscvi_params"):
+        self.load_state_dict(torch.load(path))
+        pyro.get_param_store().load(path + "_pyro.pth")
 
 
 #================================================================================================
