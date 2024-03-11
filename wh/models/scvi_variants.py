@@ -112,7 +112,7 @@ class SCANVI(nn.Module):
 
     # Load
     def load(self, path="scanvi_params"):
-        self.load_state_dict(torch.load(path))
+        self.load_state_dict(torch.load(path + "_torch.pth"))
         pyro.get_param_store().load(path + "_pyro.pth")
 
 #================================================================================================
@@ -296,7 +296,7 @@ class CSSCVI(nn.Module):
 
     # Load
     def load(self, path="csscvi_params"):
-        self.load_state_dict(torch.load(path))
+        self.load_state_dict(torch.load(path + "_torch.pth"))
         pyro.get_param_store().load(path + "_pyro.pth")
 
 
