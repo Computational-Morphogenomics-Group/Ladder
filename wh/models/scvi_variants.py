@@ -6,28 +6,10 @@ from torch.distributions import constraints
 import pyro
 import pyro.distributions as dist
 import pyro.poutine as poutine
-from pyro.distributions.util import broadcast_shape
 
-## Helpers and scANVI taken from https://pyro.ai/examples/scanvi.html
-# Splits a tensor in half along the final dimension
-def split_in_half(t):
-    return t.reshape(t.shape[:-1] + (2, -1)).unbind(-2)
+from.basics import split_in_half, broadcast_inputs, make_fc
 
-# Helper for broadcasting inputs to neural net
-def broadcast_inputs(input_args):
-    shape = broadcast_shape(*[s.shape[:-1] for s in input_args]) + (-1,)
-    input_args = [s.expand(shape) for s in input_args]
-    return input_args
 
-# FC layer maker 
-def make_fc(dims):
-    layers = []
-    for in_dim, out_dim in zip(dims, dims[1:]):
-        layers.append(nn.Linear(in_dim, out_dim))
-        layers.append(nn.BatchNorm1d(out_dim))
-        layers.append(nn.ReLU())
-    return nn.Sequential(*layers[:-1])  # Exclude final ReLU non-linearity
-##
 
 
 #================================================================================================
@@ -37,7 +19,7 @@ def make_fc(dims):
 #================================================================================================
 #================================================================================================
 
-
+## scANVI taken from https://pyro.ai/examples/scanvi.html
 class SCANVI(nn.Module):
     """SCANVI"""
     def __init__(self, num_genes, num_labels, l_loc, l_scale,

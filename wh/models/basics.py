@@ -4,6 +4,9 @@
 
 import torch
 import torch.nn as nn
+from pyro.distributions.util import broadcast_shape
+from typing import Literal
+
 
 def save_model(model, file_path):
     """
@@ -136,3 +139,107 @@ class MLP(nn.Module):
         for layer in self.fc_layers:
             x = layer(x)
         return x
+
+
+
+## Helpers taken from https://pyro.ai/examples/scanvi.html
+
+def split_in_half(t):
+    """
+    Splits a tensor in half along the final dimension
+    """
+    return t.reshape(t.shape[:-1] + (2, -1)).unbind(-2)
+
+
+def broadcast_inputs(input_args):
+    """
+    Helper for broadcasting inputs to neural net
+    """
+    shape = broadcast_shape(*[s.shape[:-1] for s in input_args]) + (-1,)
+    input_args = [s.expand(shape) for s in input_args]
+    return input_args
+
+
+def make_fc(dims):
+    """
+    Helper to make FC layers in succession
+    """
+    layers = []
+    for in_dim, out_dim in zip(dims, dims[1:]):
+        layers.append(nn.Linear(in_dim, out_dim))
+        layers.append(nn.BatchNorm1d(out_dim))
+        layers.append(nn.ReLU())
+    return nn.Sequential(*layers[:-1])
+
+
+def enc_dec(in_dims, hidden_dims, out_dims, last_config=0, dist_config : Literal["normal", "zinb", "categorical", "normal+lognormal", "classifier"] = "normal"):
+    """
+    Helper to construct NN functions
+    """
+    
+    def __init__(self, in_dims, hidden_dims, out_dims):
+        super().__init__()
+
+        match last_config:
+
+            case 0: # Last will be 2*out for easy reparam
+                dims = [in_dims] + hidden_dims + [2 * out_dims]
+
+            case _: # Last will include +2 for l_loc & l_scale
+                dims = [in_dims] + hidden_dims + [2*out_dims + 2]
+                
+                
+        self.fc = make_fc(dims)
+
+    def forward(self, inputs):
+        
+        match dist_config:
+            case "zinb": # For decoders
+                gate_logits, mu = split_in_half(self.fc(inputs))
+                
+                gate_logits = torch.clamp(gate_logits, min=1e-5, max=1-1e-5)
+                mu = softmax(mu, dim=-1)
+                
+                return gate_logits, mu
+
+            case "classifier": # For discriminators
+                logits = self.fc(inputs)
+                return logits
+
+            case "normal": # For count precursors 
+                ## Pre-conditions below
+                
+                # With broadcast
+                #z2_y = broadcast_inputs([z2, y])
+                #z2_y = torch.cat(z2_y, dim=-1)
+
+                # Without broadcast
+                #inputs = torch.cat([z1, y], dim=-1) must be satisfied
+            
+                _inputs= inputs.reshape(-1, inputs.size(-1))
+                hidden = self.fc(_inputs)
+                hidden = hidden.reshape(inputs.shape[:-1] + hidden.shape[-1:])
+                
+                loc, scale = split_in_half(hidden)
+                scale = softplus(scale)
+                
+                return loc, scale
+
+            case "normal+lognormal": # For counts
+                inputs = torch.log(1 + inputs)
+                h1, h2 = split_in_half(self.fc(inputs))
+                
+                norm_loc, norm_scale = h1[..., :-1], softplus(h2[..., :-1])
+                l_loc, l_scale = h1[..., -1:], softplus(h2[..., -1:])
+                
+                return z2_loc, z2_scale, l_loc, l_scale
+
+      
+                  
+                    
+                    
+                
+
+
+    
+        
