@@ -172,22 +172,24 @@ def make_fc(dims):
     return nn.Sequential(*layers[:-1])
 
 
-def enc_dec(in_dims, hidden_dims, out_dims, last_config=0, dist_config : Literal["normal", "zinb", "categorical", "normal+lognormal", "classifier"] = "normal"):
+def make_func(in_dims, hidden_dims, out_dims, last_config : Literal["default", "+lognormal", "reparam"] = "default", dist_config : Literal["normal", "zinb", "categorical", "normal+lognormal", "classifier"] = "normal"):
     """
     Helper to construct NN functions
     """
     
-    def __init__(self, in_dims, hidden_dims, out_dims):
+    def __init__(self, in_dims, hidden_dims, out_dim):
         super().__init__()
 
         match last_config:
 
-            case 0: # Last will be 2*out for easy reparam
-                dims = [in_dims] + hidden_dims + [2 * out_dims]
+            case "default": # Last will be 2*out for easy reparam
+                dims = [in_dims] + hidden_dims + [out_dim]
 
-            case _: # Last will include +2 for l_loc & l_scale
-                dims = [in_dims] + hidden_dims + [2*out_dims + 2]
-                
+            case "+lognormal": # Last will include +2 for l_loc & l_scale
+                dims = [in_dims] + hidden_dims + [2*out_dim + 2]
+
+            case "reparam":
+                dims = [in_dims] + hidden_dims + [2 * out_dim]
                 
         self.fc = make_fc(dims)
 
@@ -196,8 +198,6 @@ def enc_dec(in_dims, hidden_dims, out_dims, last_config=0, dist_config : Literal
         match dist_config:
             case "zinb": # For decoders
                 gate_logits, mu = split_in_half(self.fc(inputs))
-                
-                gate_logits = torch.clamp(gate_logits, min=1e-5, max=1-1e-5)
                 mu = softmax(mu, dim=-1)
                 
                 return gate_logits, mu
@@ -225,7 +225,7 @@ def enc_dec(in_dims, hidden_dims, out_dims, last_config=0, dist_config : Literal
                 
                 return loc, scale
 
-            case "normal+lognormal": # For counts
+            case "+lognormal": # For counts
                 inputs = torch.log(1 + inputs)
                 h1, h2 = split_in_half(self.fc(inputs))
                 
