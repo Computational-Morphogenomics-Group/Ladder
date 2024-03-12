@@ -168,6 +168,18 @@ def _broadcast_inputs(input_args):
     return input_args
 
 
+def _make_fc(dims):
+    """
+    Helper to make FC layers in succession
+    """
+    layers = []
+    for in_dim, out_dim in zip(dims, dims[1:]):
+        layers.append(nn.Linear(in_dim, out_dim))
+        layers.append(nn.BatchNorm1d(out_dim))
+        layers.append(nn.ReLU())
+    return nn.Sequential(*layers[:-1])
+
+
 # Helper to make functions between variables
 class _make_func(nn.Module):
     """
@@ -246,7 +258,7 @@ class _make_func(nn.Module):
             case "+lognormal": # For counts
                 f_func = self.nl_forward
                 
-        self.fc = make_fc(dims)
+        self.fc = _make_fc(dims)
         self.forward = f_func   
 
 
