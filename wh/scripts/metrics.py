@@ -8,7 +8,12 @@ import torch
 import torch.utils.data as utils
 from tqdm import trange
 import math
+gamma_apr = np.round((1.-math.gamma(1+1.e-8))*1.e14 )*1.e-6
 
+
+
+def _solve_coupon_collector(num):
+    return int(np.round((num * np.log(num)) + (num*gamma_apr)))
 
 
 def _norm_lib_size(x, norm_size=1e3):
@@ -31,12 +36,15 @@ def get_normalized_profile(point_dataset, target=None, lib_size=1e3):
     
     return _norm_lib_size(point_set, lib_size).T.mean(-1)
 
+
 def _get_idxs(point_dataset, target):
     return [idx for idx in range(len(point_dataset)) if (point_dataset[idx][1] == target).all()]
+
 
 def _get_subset(point_dataset, target):
     tup = point_dataset[_get_idxs(point_dataset, target)]
     return utils.TensorDataset(tup[0], tup[1])
+
 
 def self_profile_reproduction_error(point_dataset, target=None, n_trials=3000, subset_size=0.5, lib_size=1e3):
 
@@ -55,6 +63,7 @@ def self_profile_reproduction_error(point_dataset, target=None, n_trials=3000, s
     return profiles, samples
 
 
+
 def gen_profile_reproduction_error(point_dataset, model, source, target, n_trials=3000, lib_size=1e3, verbose=False):
     source_set, target_set = _get_subset(point_dataset, source), _get_subset(point_dataset, target)
 
@@ -70,7 +79,14 @@ def gen_profile_reproduction_error(point_dataset, model, source, target, n_trial
     return profiles, preds
 
 
-def get_weighted_reproduction_error(point_dataset, model, source, target, n_trials=3000, subset_size=0.5, lib_size=1e3, verbose=False):
+
+def get_weighted_reproduction_error(point_dataset, model, source, target, n_trials=None, subset_size=0.5, lib_size=1e3, verbose=False):
+
+    if n_trials is None:
+        print("Defaulting to coupon collector for n_trials...")
+        n_trials = _solve_coupon_collector(len(point_dataset))
+        
+    
     mean_profile = get_normalized_profile(point_dataset, target=target)
 
     repr_profiles, samples = self_profile_reproduction_error(point_dataset, target=target, subset_size=subset_size, n_trials=n_trials, lib_size=lib_size)
