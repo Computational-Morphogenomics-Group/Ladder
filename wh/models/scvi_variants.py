@@ -6,7 +6,7 @@ import pyro
 import pyro.distributions as dist
 import pyro.poutine as poutine
 
-from.basics import broadcast_inputs, make_func
+from.basics import _broadcast_inputs, _make_func
 import numpy as np
 
 #================================================================================================
@@ -38,9 +38,9 @@ class SCVI(nn.Module):
         super(SCVI, self).__init__()
 
         # Setup NN functions
-        self.z_decoder = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.x_decoder = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
-        self.zl_encoder = make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
+        self.z_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+        self.x_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+        self.zl_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
         
 
         self.epsilon = 0.006
@@ -80,6 +80,28 @@ class SCVI(nn.Module):
             pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
             pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
+    
+    # Generate
+    def generate(self, x, y=None):
+        pyro.module("scvi", self)
+        
+        ## Encode
+        z_loc, z_scale, l_loc, l_scale = self.zl_encoder(x)
+            
+        l_enc = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+        z_enc = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+
+        ## Decode
+        theta = dict(pyro.get_param_store())["inverse_dispersion"].detach()
+
+        gate_logits, mu = self.x_decoder(z_enc)
+        nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+        x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta,
+                                                       logits=nb_logits, validate_args=False)
+            
+            
+        x_rec = pyro.sample("x", x_dist.to_event(1), obs=x)
+        return x_rec
 
     # Save self
     def save(self, path="scvi_params"):
@@ -125,11 +147,11 @@ class SCANVI(nn.Module):
         super(SCANVI, self).__init__()
 
         # Setup NN functions
-        self.z2_decoder = make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.x_decoder = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
-        self.z2l_encoder = make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
-        self.classifier = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_labels, last_config="default", dist_config="classifier")
-        self.z1_encoder = make_func(in_dims=self.num_labels + self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+        self.z2_decoder = _make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+        self.x_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+        self.z2l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
+        self.classifier = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_labels, last_config="default", dist_config="classifier")
+        self.z1_encoder = _make_func(in_dims=self.num_labels + self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
         
 
         self.epsilon = 0.006
@@ -180,7 +202,7 @@ class SCANVI(nn.Module):
             classification_loss = y_dist.log_prob(y)
             pyro.factor("classification_loss", -self.alpha * classification_loss, has_rsample=False)
 
-            z2_y = broadcast_inputs([z2, y])
+            z2_y = _broadcast_inputs([z2, y])
             z2_y = torch.cat(z2_y, dim=-1)
             z1_loc, z1_scale = self.z1_encoder(z2_y)
             pyro.sample("z1", dist.Normal(z1_loc, z1_scale).to_event(1))
@@ -200,7 +222,7 @@ class SCANVI(nn.Module):
 
 
         # Variational for w & z
-        z2_y = broadcast_inputs([z2, y])
+        z2_y = _broadcast_inputs([z2, y])
         z2_y = torch.cat(z2_y, dim=-1)
         z1_loc, z1_scale = self.z1_encoder(z2_y)
         z1_enc = pyro.sample("z1", dist.Normal(z1_loc, z1_scale).to_event(1))
@@ -283,17 +305,17 @@ class CSSCVI(nn.Module):
 
         
         # Setup NN functions
-        self.rho_decoder = make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.x_decoder = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
-        self.rho_l_encoder = make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
+        self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+        self.x_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+        self.rho_l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
 
 
         ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
-        self.classifier_w_y1 = make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[0], last_config="default", dist_config="classifier")
-        self.classifier_w_y2 = make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[1], last_config="default", dist_config="classifier")
+        self.classifier_w_y1 = _make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[0], last_config="default", dist_config="classifier")
+        self.classifier_w_y2 = _make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[1], last_config="default", dist_config="classifier")
         
-        self.z_encoder = make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.w_encoder = make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
+        self.z_encoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+        self.w_encoder = _make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
 
         self.epsilon = 0.006
 
@@ -346,7 +368,7 @@ class CSSCVI(nn.Module):
             rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
 
             # Variational for w & z
-            rho_y = broadcast_inputs([rho, y])
+            rho_y = _broadcast_inputs([rho, y])
             rho_y = torch.cat(rho_y, dim=-1)
             
             w_loc, w_scale = self.w_encoder(rho_y)
@@ -384,7 +406,7 @@ class CSSCVI(nn.Module):
 
 
         # Variational for w & z
-        rho_enc_y = broadcast_inputs([rho_enc, y])
+        rho_enc_y = _broadcast_inputs([rho_enc, y])
         rho_enc_y = torch.cat(rho_enc_y, dim=-1)
         
         w_loc, w_scale = self.w_encoder(rho_enc_y)

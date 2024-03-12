@@ -152,14 +152,14 @@ class MLP(nn.Module):
 
 ## Next 3 helpers taken from https://pyro.ai/examples/scanvi.html
 
-def split_in_half(t):
+def _split_in_half(t):
     """
     Splits a tensor in half along the final dimension
     """
     return t.reshape(t.shape[:-1] + (2, -1)).unbind(-2)
 
 
-def broadcast_inputs(input_args):
+def _broadcast_inputs(input_args):
     """
     Helper for broadcasting inputs to neural net
     """
@@ -168,27 +168,15 @@ def broadcast_inputs(input_args):
     return input_args
 
 
-def make_fc(dims):
-    """
-    Helper to make FC layers in succession
-    """
-    layers = []
-    for in_dim, out_dim in zip(dims, dims[1:]):
-        layers.append(nn.Linear(in_dim, out_dim))
-        layers.append(nn.BatchNorm1d(out_dim))
-        layers.append(nn.ReLU())
-    return nn.Sequential(*layers[:-1])
-
-
 # Helper to make functions between variables
-class make_func(nn.Module):
+class _make_func(nn.Module):
     """
     Helper to construct NN functions
     """
 
     ## Forwards for different configs
     def zinb_forward(self, inputs):
-        gate_logits, mu = split_in_half(self.fc(inputs))
+        gate_logits, mu = _split_in_half(self.fc(inputs))
         mu = softmax(mu, dim=-1)
                 
         return gate_logits, mu
@@ -214,14 +202,14 @@ class make_func(nn.Module):
         hidden = self.fc(_inputs)
         hidden = hidden.reshape(inputs.shape[:-1] + hidden.shape[-1:])
                 
-        loc, scale = split_in_half(hidden)
+        loc, scale = _split_in_half(hidden)
         scale = softplus(scale)
                 
         return loc, scale
 
     def nl_forward(self, inputs):
         inputs = torch.log(1 + inputs)
-        h1, h2 = split_in_half(self.fc(inputs))
+        h1, h2 = _split_in_half(self.fc(inputs))
                 
         norm_loc, norm_scale = h1[..., :-1], softplus(h2[..., :-1])
         l_loc, l_scale = h1[..., -1:], softplus(h2[..., -1:])
