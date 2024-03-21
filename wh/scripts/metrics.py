@@ -100,8 +100,12 @@ def self_profile_reproduction(point_dataset, target=None, n_trials=3000, subset_
 
 
 
-def gen_profile_reproduction(point_dataset, model, source, target, n_trials=3000, lib_size=1e3, verbose=False):
-    source_set, target_set = _get_subset(point_dataset, source), _get_subset(point_dataset, target)
+def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_trials=3000, lib_size=1e3, verbose=False):
+    if source is not None and target is not None:
+        source_set, target_set = _get_subset(point_dataset, source), _get_subset(point_dataset, target)
+
+    else:
+        source_set, target_set = point_dataset, point_dataset
     
     preds = torch.stack([model(source_set[:][0].cuda(), target_set[0][1].repeat(len(source_set),1).cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
     profiles = torch.stack([_get_normalized_profile(pred, lib_size) for pred in preds])

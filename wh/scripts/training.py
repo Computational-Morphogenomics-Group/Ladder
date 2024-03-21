@@ -18,7 +18,7 @@ def get_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
                   
-# Helper to train Pyro models            
+# Helper to train Pyro models
 def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 4e-4, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}):
     
     model = model.double().to(device)
@@ -62,8 +62,8 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
         if verbose:
             print(f"Epoch : {epoch} || Train Loss: {np.mean(losses).round(5)} || Test Loss: {np.mean(losses_test).round(5)}")
 
-    loss_track_train.append(np.mean(losses))
-    loss_track_test.append(np.mean(losses_test))
+        loss_track_train.append(np.mean(losses))
+        loss_track_test.append(np.mean(losses_test))
 
     return model, loss_track_train, loss_track_test
           
