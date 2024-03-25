@@ -64,7 +64,10 @@ def construct_labels(counts, metadata, factors):
     return utils.TensorDataset(x,y), levels_cat
 
 
-def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u"] = "o_o", split_pcts = [0.8, 0.2], batch_size=256, source=(1,0,0,0,1), target=(0,1,0,0,1)):
+def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u", "u"] = "o_o", split_pcts = [0.8, 0.2], batch_size=256, source=(1,0,0,0,1), target=(0,1,0,0,1)):
+
+    np.random.seed(42)
+    torch.manual_seed(42)
 
     inv_levels = {v: k for k, v in levels.items()}
 
@@ -74,7 +77,7 @@ def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u"] =
             train_set, test_set = utils.random_split(dataset, split_pcts)
             train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
 
-        case "o_u" | "u_u":
+        case "o_u" | "u_u" | "u":
             source_set, target_set = _get_subset(dataset, torch.tensor(source)), _get_subset(dataset, torch.tensor(target))
 
             print(f"Source : {inv_levels[source]} // Target : {inv_levels[target]}")
@@ -83,11 +86,15 @@ def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u"] =
             print("Popped target")
 
             if split_type == "u_u":
-                target_set = ConcatTensorDataset([source_set, target_set])
                 inv_levels.pop(source) # Pop source as well 
                 print("Popped source")
+
+
             
             rest = ConcatTensorDataset([_get_subset(dataset, torch.tensor(key)) for key in inv_levels.keys()])
+
+            if split_type != "u":
+                target_set = ConcatTensorDataset([source_set, target_set])
             
             train_set, test_set = rest, target_set
             train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)

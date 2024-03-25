@@ -10,6 +10,8 @@ from tqdm import trange
 import math
 from typing import Literal
 import ot
+from scipy.stats import pearsonr   
+
 
 
 GAMMA = np.round((1.-math.gamma(1+1.e-8))*1.e14 )*1.e-6
@@ -50,6 +52,8 @@ def _get_subset(point_dataset, target):
 def _get_rmse_n_to_1(profiles, mean_profile, **kwargs):
     return profiles.add(-1*mean_profile).square().mean(-1).sqrt().mean().item()
 
+def _get_corr_n_to_1(profiles, mean_profile, **kwargs):
+    return np.mean([pearsonr(profile, mean_profile)[0] for profile in profiles])
 
 def _get_chamf_n_to_1(samples, orig, verbose=False, **kwargs):
         
@@ -124,6 +128,9 @@ def get_weighted_reproduction_error(point_dataset, model, source, target, metric
         case "rmse":
             _metric_func = _get_rmse_n_to_1
 
+        case "corr":
+            _metric_func = _get_corr_n_to_1
+
         case "chamfer":
             _metric_func = _get_chamf_n_to_1
 
@@ -136,7 +143,7 @@ def get_weighted_reproduction_error(point_dataset, model, source, target, metric
 
     
     match metric:
-        case "rmse": # Add profile metrics here 
+        case "rmse" | "corr": # Add profile metrics here 
             mean_profile = get_normalized_profile(point_dataset, target=target)
             repr_mean_error = _metric_func(repr_profiles, mean_profile, **kwargs)
             preds_mean_error = _metric_func(pred_profiles, mean_profile, **kwargs)
