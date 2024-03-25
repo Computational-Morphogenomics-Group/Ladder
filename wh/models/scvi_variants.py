@@ -100,7 +100,7 @@ class SCVI(nn.Module):
                                                        logits=nb_logits, validate_args=False)
             
             
-        x_rec = pyro.sample("x", x_dist.to_event(1), obs=x)
+        x_rec = pyro.sample("x", x_dist.to_event(1))
         return x_rec
 
     # Save self
@@ -130,7 +130,7 @@ class SCANVI(nn.Module):
     """
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, hidden_dim=128, num_layers=1,
-                 latent_dim=10, alpha=0.01, scale_factor=1.0):
+                 latent_dim=10, alpha=0.1, scale_factor=1.0):
          
 
         # Init params & hyperparams
@@ -222,7 +222,7 @@ class SCANVI(nn.Module):
 
 
         # Variational for w & z
-        z2_y = _broadcast_inputs([z2, y])
+        z2_y = _broadcast_inputs([z2_enc, y])
         z2_y = torch.cat(z2_y, dim=-1)
         z1_loc, z1_scale = self.z1_encoder(z2_y)
         z1_enc = pyro.sample("z1", dist.Normal(z1_loc, z1_scale).to_event(1))
@@ -285,7 +285,7 @@ class CSSCVI(nn.Module):
 
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, w_loc=[0,3], w_scale=[0.1,1], w_dim=10, len_attrs=[3,2],
-                 latent_dim=10, num_layers=1, hidden_dim=128, alpha=0.01, scale_factor=1.0):
+                 latent_dim=10, num_layers=1, hidden_dim=128, alpha=0.1, scale_factor=1.0):
 
         
         # Init params & hyperparams
@@ -313,6 +313,9 @@ class CSSCVI(nn.Module):
         ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
         self.classifier_w_y1 = _make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[0], last_config="default", dist_config="classifier")
         self.classifier_w_y2 = _make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[1], last_config="default", dist_config="classifier")
+
+        self.classifier_z_y1 = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[0], last_config="default", dist_config="classifier")
+        self.classifier_z_y2 = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[1], last_config="default", dist_config="classifier")
         
         self.z_encoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
         self.w_encoder = _make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
@@ -377,20 +380,53 @@ class CSSCVI(nn.Module):
             w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
             z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
+        
+            # Classification for w (good) and z (bad)
+
+            ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
+            z_y1_logits, z_y2_logits = self.classifier_z_y1(z), self.classifier_z_y2(z)
+            z_y1_dist, z_y2_dist = dist.OneHotCategorical(logits=z_y1_logits), dist.OneHotCategorical(logits=z_y2_logits)
+
+           
+            classification_loss_z = z_y1_dist.log_prob(y[..., :self.len_attrs[0]]) + z_y2_dist.log_prob(y[..., self.len_attrs[0]:])
+                
+            pyro.factor("classification_loss", self.alpha * classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
+
+
+    
+
+    # Adverserial
+    def adverserial(self, x, y):
+        pyro.module("csscvi", self)
+        
+        with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
+            # Variational for rho & l
+            rho_loc, rho_scale, l_loc, l_scale = self.rho_l_encoder(x)
+            
+            pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+            rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+
+            # Variational for w & z
+            rho_y = _broadcast_inputs([rho, y])
+            rho_y = torch.cat(rho_y, dim=-1)
+            
+            z_loc, z_scale = self.z_encoder(rho)
+
+            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+
 
             # Classification for w (good) and z (bad)
 
             ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
-            w_y1_logits, w_y2_logits = self.classifier_w_y1(w), self.classifier_w_y2(w)
-            w_y1_dist, w_y2_dist = dist.OneHotCategorical(logits=w_y1_logits), dist.OneHotCategorical(logits=w_y2_logits)
+            z_y1_logits, z_y2_logits = self.classifier_z_y1(z), self.classifier_z_y2(z)
+            z_y1_dist, z_y2_dist = dist.OneHotCategorical(logits=z_y1_logits), dist.OneHotCategorical(logits=z_y2_logits)
 
                 
            
-            classification_loss_w = w_y1_dist.log_prob(y[..., :self.len_attrs[0]]) + w_y2_dist.log_prob(y[..., self.len_attrs[0]:])
+            classification_loss_z = z_y1_dist.log_prob(y[..., :self.len_attrs[0]]) + z_y2_dist.log_prob(y[..., self.len_attrs[0]:])
                 
-            pyro.factor("classification_loss", -self.alpha * classification_loss_w, has_rsample=False)
-
-
+            return -self.alpha*classification_loss_z
+        
     
     # Function to move points between conditions
     @torch.no_grad()
