@@ -44,22 +44,36 @@ def _get_subset(point_dataset, target):
     return utils.TensorDataset(tup[0], tup[1])
 
 
-def construct_labels(counts, metadata, factors):
-    factors_list = [torch.from_numpy(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).to_numpy().astype(int)).double() for factor in factors]
-    levels = [list(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).columns) for factor in factors]
-    levels_dict = [{level[i] : tuple([0]*i + [1] + [0]*(len(level)-1-i)) for i in range(len(level)) } for level in levels]
+def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat"):
 
-    levels_dict_flat = {}
-    for d in levels_dict:
-        levels_dict_flat.update(d)
+    match style:
+        case "concat":
+            
+            factors_list = [torch.from_numpy(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).to_numpy().astype(int)).double() for factor in factors]
+            levels = [list(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).columns) for factor in factors]
+            levels_dict = [{level[i] : tuple([0]*i + [1] + [0]*(len(level)-1-i)) for i in range(len(level)) } for level in levels]
+
+            levels_dict_flat = {}
+            for d in levels_dict:
+                levels_dict_flat.update(d)
 
 
-    levels_cat = {" - ".join(prod) : tuple(chain(*[levels_dict_flat[prod[i]] for i in range(len(prod))])) for prod in product(*[list(level.keys()) for level in levels_dict])}
+            levels_cat = {" - ".join(prod) : tuple(chain(*[levels_dict_flat[prod[i]] for i in range(len(prod))])) for prod in product(*[list(level.keys()) for level in levels_dict])}
 
     
 
-    y = torch.cat(factors_list, dim = -1)
-    x = torch.from_numpy(counts.to_numpy()).double()
+            y = torch.cat(factors_list, dim = -1)
+            x = torch.from_numpy(counts.to_numpy()).double()
+
+        case "one-hot":
+            
+            factors_list = torch.from_numpy(pd.get_dummies(metadata.apply(lambda x : " - ".join(x[factors]), axis=1)).to_numpy().astype(int)).double()
+            cols = list(pd.get_dummies(metadata.apply(lambda x : " - ".join(x[factors]), axis=1)).columns)
+            levels_cat = { cols[i] : tuple([0]*i + [1] + [0]*(len(cols)-1-i)) for i in range(len(cols))}
+
+            y = factors_list
+            x = torch.from_numpy(counts.to_numpy()).double()
+            
 
     return utils.TensorDataset(x,y), levels_cat
 
