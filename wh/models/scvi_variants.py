@@ -110,10 +110,16 @@ class SCVI(nn.Module):
 
 
     # Load
-    def load(self, path="scvi_params"):
+    def load(self, path="scvi_params", map_location=None):
         pyro.clear_param_store()
-        self.load_state_dict(torch.load(path + "_torch.pth"))
-        pyro.get_param_store().load(path + "_pyro.pth")
+
+        if map_location is None:
+            self.load_state_dict(torch.load(path + "_torch.pth"))
+            pyro.get_param_store().load(path + "_pyro.pth")
+
+        else:
+            self.load_state_dict(torch.load(path + "_torch.pth", map_location=map_location))
+            pyro.get_param_store().load(path + "_pyro.pth", map_location=map_location)
 
 
 #================================================================================================
@@ -254,10 +260,16 @@ class SCANVI(nn.Module):
 
 
     # Load
-    def load(self, path="scanvi_params"):
+    def load(self, path="scanvi_params", map_location=None):
         pyro.clear_param_store()
-        self.load_state_dict(torch.load(path + "_torch.pth"))
-        pyro.get_param_store().load(path + "_pyro.pth")
+
+        if map_location is None:
+            self.load_state_dict(torch.load(path + "_torch.pth"))
+            pyro.get_param_store().load(path + "_pyro.pth")
+
+        else:
+            self.load_state_dict(torch.load(path + "_torch.pth", map_location=map_location))
+            pyro.get_param_store().load(path + "_pyro.pth", map_location=map_location)
 
 
 
@@ -338,6 +350,7 @@ class CSSCVI(nn.Module):
             ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes 
             y1 = pyro.sample("y1", dist.OneHotCategorical(logits=x.new_zeros(3)), obs=y[..., :self.len_attrs[0]])
             y2 = pyro.sample("y2", dist.OneHotCategorical(logits=x.new_zeros(2)), obs=y[..., self.len_attrs[0]:])            
+            
             w_loc = torch.concat([self.concat_lat_dims(y1, self.w_locs, self.w_dim), self.concat_lat_dims(y2, self.w_locs, self.w_dim)], dim = -1)
             w_scale = torch.concat([self.concat_lat_dims(y1, self.w_scales, self.w_dim), self.concat_lat_dims(y2, self.w_scales, self.w_dim)], dim = -1)
             
@@ -384,12 +397,13 @@ class CSSCVI(nn.Module):
             # Classification for w (good) and z (bad)
 
             ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
+
             z_y1_logits, z_y2_logits = self.classifier_z_y1(z), self.classifier_z_y2(z)
             z_y1_dist, z_y2_dist = dist.OneHotCategorical(logits=z_y1_logits), dist.OneHotCategorical(logits=z_y2_logits)
 
-           
+            
             classification_loss_z = z_y1_dist.log_prob(y[..., :self.len_attrs[0]]) + z_y2_dist.log_prob(y[..., self.len_attrs[0]:])
-                
+                        
             pyro.factor("classification_loss", self.alpha * classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
 
 
@@ -420,11 +434,11 @@ class CSSCVI(nn.Module):
             ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
             z_y1_logits, z_y2_logits = self.classifier_z_y1(z), self.classifier_z_y2(z)
             z_y1_dist, z_y2_dist = dist.OneHotCategorical(logits=z_y1_logits), dist.OneHotCategorical(logits=z_y2_logits)
-
+            
                 
-           
             classification_loss_z = z_y1_dist.log_prob(y[..., :self.len_attrs[0]]) + z_y2_dist.log_prob(y[..., self.len_attrs[0]:])
                 
+            
             return -self.alpha*classification_loss_z
         
     
@@ -478,10 +492,16 @@ class CSSCVI(nn.Module):
 
 
     # Load
-    def load(self, path="csscvi_params"):
+    def load(self, path="csscvi_params", map_location=None):
         pyro.clear_param_store()
-        self.load_state_dict(torch.load(path + "_torch.pth"))
-        pyro.get_param_store().load(path + "_pyro.pth")
+
+        if map_location is None:
+            self.load_state_dict(torch.load(path + "_torch.pth"))
+            pyro.get_param_store().load(path + "_pyro.pth")
+
+        else:
+            self.load_state_dict(torch.load(path + "_torch.pth", map_location=map_location))
+            pyro.get_param_store().load(path + "_pyro.pth", map_location=map_location)
 
 
 #================================================================================================
