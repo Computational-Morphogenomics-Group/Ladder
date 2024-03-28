@@ -104,21 +104,28 @@ def self_profile_reproduction(point_dataset, target=None, n_trials=3000, subset_
 
 
 
-def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_trials=3000, lib_size=1e3, verbose=False):
+def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_trials=3000, lib_size=1e3, verbose=False, use_cuda=True):
     if source is not None and target is not None:
         source_set, target_set = _get_subset(point_dataset, source), _get_subset(point_dataset, target)
 
     else:
         source_set, target_set = point_dataset, point_dataset
     
-    preds = torch.stack([model(source_set[:][0].cuda(), target_set[0][1].repeat(len(source_set),1).cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+    
+    if use_cuda:
+        preds = torch.stack([model(source_set[:][0].cuda(), target_set[0][1].repeat(len(source_set),1).cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+    else:
+        preds = torch.stack([model(source_set[:][0].cpu(), target_set[0][1].repeat(len(source_set),1).cpu())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+    
+    
+    
     profiles = torch.stack([_get_normalized_profile(pred, lib_size) for pred in preds])
 
     return profiles, preds
 
 
 
-def get_weighted_reproduction_error(point_dataset, model, source, target, metric : Literal["chamfer", "rmse", "swd"] = "rmse", n_trials=None, subset_size=0.5, lib_size=1e3, **kwargs):
+def get_weighted_reproduction_error(point_dataset, model, source, target, metric : Literal["chamfer", "rmse", "swd"] = "rmse", n_trials=None, subset_size=0.5, lib_size=1e3,**kwargs):
 
     if n_trials is None:
         print("Defaulting to coupon collector for n_trials...")
