@@ -2,7 +2,7 @@
 ###### Training Utilities ##########
 ####################################
 
-import torch
+import torch, pyro
 import torch.nn as nn
 from torch.nn.functional import softplus, softmax
 from pyro.distributions.util import broadcast_shape
@@ -70,7 +70,7 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
 
 
 # Helper to train models that involve disjoint parameters during training
-def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, style : Literal["joint", "disjoint"] = "disjoint"):
+def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, style : Literal["joint", "disjoint"] = "disjoint", warmup=0):
 
     model = model.double().to(device)
     loss_track_test, loss_track_train = [], []
@@ -125,14 +125,15 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
             
 
                 # Other parameters also train
-                for x, y in train_loader:
-                    x, y = x.to(device), y.to(device)
-                    loss = loss_fn(model.model, model.guide, x, y)
-                    losses.append(loss.detach().cpu())
+                if epoch+1 > warmup:
+                    for x, y in train_loader:
+                        x, y = x.to(device), y.to(device)
+                        loss = loss_fn(model.model, model.guide, x, y)
+                        losses.append(loss.detach().cpu())
 
-                    optimizer_nonc.zero_grad()
-                    loss.backward()
-                    optimizer_nonc.step()
+                        optimizer_nonc.zero_grad()
+                        loss.backward()
+                        optimizer_nonc.step()
             
         
             case "joint":
@@ -152,12 +153,15 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
 
 
                     # Other params branch
-                    loss = loss_fn(model.model, model.guide, x, y)
-                    losses.append(loss.detach().cpu())
+                    if epoch+1 > warmup:
+                        loss = loss_fn(model.model, model.guide, x, y)
+                        losses.append(loss.detach().cpu())
 
-                    optimizer_nonc.zero_grad()
-                    loss.backward()
-                    optimizer_nonc.step()
+                        optimizer_nonc.zero_grad()
+                        loss.backward()
+                        optimizer_nonc.step()
+
+                        #print(f"logloss: {log_prob_loss} // loss: {loss}")
 
                 
                 
@@ -178,7 +182,7 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
         #scheduler.step()
 
         if verbose:
-            print(f"Epoch : {epoch} || Train Loss: {np.mean(losses).round(5)} // {np.mean(prob_losses).round(5)} || Test Loss: {np.mean(losses_test).round(5)} // {np.mean(prob_losses_test).round(5)} ")
+            print(f"Epoch : {epoch} || Train Loss: {np.mean(losses).round(5)} // {np.mean(prob_losses).round(5)} || Test Loss: {np.mean(losses_test).round(5)} // {np.mean(prob_losses_test).round(5)} || Warmup : {bool(epoch+1 <= warmup)}")
 
         loss_track_train.append(np.mean(losses))
         loss_track_test.append(np.mean(losses_test))
