@@ -82,7 +82,7 @@ class SCVI(nn.Module):
 
     
     # Generate
-    def generate(self, x, y=None):
+    def generate(self, x, y_source=None, y_target=None):
         pyro.module("scvi", self)
         
         ## Encode
@@ -216,7 +216,7 @@ class SCANVI(nn.Module):
 
     # Function to move points between conditions
     @torch.no_grad()
-    def generate(self, x, y):
+    def generate(self, x, y_source=None, y_target=None):
         pyro.module("scanvi", self)
   
         ## Encode
@@ -227,8 +227,8 @@ class SCANVI(nn.Module):
         z2_enc = pyro.sample("z2_enc", dist.Normal(z2_loc, z2_scale).to_event(1))
 
 
-        # Variational for w & z
-        z2_y = _broadcast_inputs([z2_enc, y])
+        # Variational for z
+        z2_y = _broadcast_inputs([z2_enc, y_source])
         z2_y = torch.cat(z2_y, dim=-1)
         z1_loc, z1_scale = self.z1_encoder(z2_y)
         z1_enc = pyro.sample("z1", dist.Normal(z1_loc, z1_scale).to_event(1))
@@ -237,7 +237,7 @@ class SCANVI(nn.Module):
         ## Decode
         theta = dict(pyro.get_param_store())["inverse_dispersion"].detach()
 
-        z1_y = torch.cat([z1_enc, y], dim=-1)
+        z1_y = torch.cat([z1_enc, y_target], dim=-1)
         z2_loc, z2_scale = self.z2_decoder(z1_y)
         z2 = pyro.sample("z2", dist.Normal(z2_loc, z2_scale).to_event(1))
 
@@ -444,7 +444,7 @@ class CSSCVI(nn.Module):
     
     # Function to move points between conditions
     @torch.no_grad()
-    def generate(self, x, y):
+    def generate(self, x, y_source=None, y_target=None):
         pyro.module("csscvi", self)
   
         ## Encode
@@ -456,12 +456,17 @@ class CSSCVI(nn.Module):
 
 
         # Variational for w & z
-        rho_enc_y = _broadcast_inputs([rho_enc, y])
-        rho_enc_y = torch.cat(rho_enc_y, dim=-1)
-        
-        w_loc, w_scale = self.w_encoder(rho_enc_y)
-        z_loc, z_scale = self.z_encoder(rho_enc)
+        ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes 
+        ## TODO: Search the attribute space instead of picking a single sample
 
+        y1 = y_target[..., :self.len_attrs[0]]
+        y2 = y_target[..., self.len_attrs[0]:]            
+            
+        w_loc = torch.concat([self.concat_lat_dims(y1, self.w_locs, self.w_dim), self.concat_lat_dims(y2, self.w_locs, self.w_dim)], dim = -1)
+        w_scale = torch.concat([self.concat_lat_dims(y1, self.w_scales, self.w_dim), self.concat_lat_dims(y2, self.w_scales, self.w_dim)], dim = -1)
+
+        z_loc, z_scale = self.z_encoder(rho_enc)
+            
         w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
         z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
