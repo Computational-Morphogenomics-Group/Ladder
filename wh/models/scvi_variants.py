@@ -486,7 +486,7 @@ class CSSCVI(nn.Module):
             
         for i in range(len(self.len_attrs)):
             next_track = attr_track + self.len_attrs[i]
-            y_s.append(pyro.sample(f"y_{i}", dist.OneHotCategorical(logits=x.new_zeros(self.len_attrs[i])), obs=y[..., attr_track : next_track]))
+            y_s.append(y_target[..., attr_track : next_track])
                 
             attr_track = next_track
 
