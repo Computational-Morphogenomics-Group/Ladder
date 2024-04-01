@@ -322,12 +322,10 @@ class CSSCVI(nn.Module):
         self.rho_l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
 
 
-        ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
-        self.classifier_w_y1 = _make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[0], last_config="default", dist_config="classifier")
-        self.classifier_w_y2 = _make_func(in_dims=self.w_dim*self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[1], last_config="default", dist_config="classifier")
 
-        self.classifier_z_y1 = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[0], last_config="default", dist_config="classifier")
-        self.classifier_z_y2 = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[1], last_config="default", dist_config="classifier")
+        for i in range(len(self.len_attrs)):
+            setattr(self, f"classifier_z_y{i}",  _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[i], last_config="default", dist_config="classifier"))
+        
         
         self.z_encoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
         self.w_encoder = _make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
@@ -347,12 +345,20 @@ class CSSCVI(nn.Module):
             z = pyro.sample("z", dist.Normal(0, x.new_ones(self.latent_dim)).to_event(1))
 
 
-            ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes 
-            y1 = pyro.sample("y1", dist.OneHotCategorical(logits=x.new_zeros(3)), obs=y[..., :self.len_attrs[0]])
-            y2 = pyro.sample("y2", dist.OneHotCategorical(logits=x.new_zeros(2)), obs=y[..., self.len_attrs[0]:])            
+            # Keep tracked attributes in a list
+            y_s = []
+            attr_track = 0
             
-            w_loc = torch.concat([self.concat_lat_dims(y1, self.w_locs, self.w_dim), self.concat_lat_dims(y2, self.w_locs, self.w_dim)], dim = -1)
-            w_scale = torch.concat([self.concat_lat_dims(y1, self.w_scales, self.w_dim), self.concat_lat_dims(y2, self.w_scales, self.w_dim)], dim = -1)
+            for i in range(len(self.len_attrs)):
+                next_track = attr_track + self.len_attrs[i]
+                y_s.append(pyro.sample(f"y_{i}", dist.OneHotCategorical(logits=x.new_zeros(self.len_attrs[i])), obs=y[..., attr_track : next_track]))
+                
+                attr_track = next_track
+                        
+
+            w_loc = torch.concat([self.concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim = -1)
+            w_scale = torch.concat([self.concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s], dim = -1)
+           
             
             w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
 
@@ -396,14 +402,21 @@ class CSSCVI(nn.Module):
         
             # Classification for w (good) and z (bad)
 
-            ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
-
-            z_y1_logits, z_y2_logits = self.classifier_z_y1(z), self.classifier_z_y2(z)
-            z_y1_dist, z_y2_dist = dist.OneHotCategorical(logits=z_y1_logits), dist.OneHotCategorical(logits=z_y2_logits)
-
+            # Keep track over list
+            classification_loss_z = 0
+            attr_track = 0
             
-            classification_loss_z = z_y1_dist.log_prob(y[..., :self.len_attrs[0]]) + z_y2_dist.log_prob(y[..., self.len_attrs[0]:])
-                        
+            for i in range(len(self.len_attrs)):
+                next_track = attr_track + self.len_attrs[i]
+                
+                cur_func = getattr(self, f"classifier_z_y{i}")
+                cur_logits = cur_func(z)
+                cur_dist =  dist.OneHotCategorical(logits=cur_logits)
+                classification_loss_z += cur_dist.log_prob(y[..., attr_track : next_track])
+
+                attr_track = next_track
+                
+                                        
             pyro.factor("classification_loss", self.alpha * classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
 
 
@@ -431,13 +444,22 @@ class CSSCVI(nn.Module):
 
             # Classification for w (good) and z (bad)
 
-            ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes
-            z_y1_logits, z_y2_logits = self.classifier_z_y1(z), self.classifier_z_y2(z)
-            z_y1_dist, z_y2_dist = dist.OneHotCategorical(logits=z_y1_logits), dist.OneHotCategorical(logits=z_y2_logits)
+            # Keep track over list
+            classification_loss_z = 0
+            attr_track = 0
             
+            for i in range(len(self.len_attrs)):
+                next_track = attr_track + self.len_attrs[i]
                 
-            classification_loss_z = z_y1_dist.log_prob(y[..., :self.len_attrs[0]]) + z_y2_dist.log_prob(y[..., self.len_attrs[0]:])
-                
+                cur_func = getattr(self, f"classifier_z_y{i}")
+                cur_logits = cur_func(z)
+                cur_dist =  dist.OneHotCategorical(logits=cur_logits)
+                classification_loss_z += cur_dist.log_prob(y[..., attr_track : next_track])
+
+                attr_track = next_track
+            
+            
+                                
             
             return -self.alpha*classification_loss_z
         
@@ -456,15 +478,22 @@ class CSSCVI(nn.Module):
 
 
         # Variational for w & z
-        ## TODO: Keep these in a list to generalize over arbitrary number of attributes with different sizes 
         ## TODO: Search the attribute space instead of picking a single sample
 
-        y1 = y_target[..., :self.len_attrs[0]]
-        y2 = y_target[..., self.len_attrs[0]:]            
+        # Keep tracked attributes in a list
+        y_s = []
+        attr_track = 0
             
-        w_loc = torch.concat([self.concat_lat_dims(y1, self.w_locs, self.w_dim), self.concat_lat_dims(y2, self.w_locs, self.w_dim)], dim = -1)
-        w_scale = torch.concat([self.concat_lat_dims(y1, self.w_scales, self.w_dim), self.concat_lat_dims(y2, self.w_scales, self.w_dim)], dim = -1)
+        for i in range(len(self.len_attrs)):
+            next_track = attr_track + self.len_attrs[i]
+            y_s.append(pyro.sample(f"y_{i}", dist.OneHotCategorical(logits=x.new_zeros(self.len_attrs[i])), obs=y[..., attr_track : next_track]))
+                
+            attr_track = next_track
 
+
+        w_loc = torch.concat([self.concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim = -1)
+        w_scale = torch.concat([self.concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s], dim = -1)
+           
         z_loc, z_scale = self.z_encoder(rho_enc)
             
         w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
