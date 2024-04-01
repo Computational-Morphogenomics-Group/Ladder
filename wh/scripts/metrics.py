@@ -113,9 +113,9 @@ def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_t
     
     
     if use_cuda:
-        preds = torch.stack([model(source_set[:][0].cuda(), target_set[0][1].repeat(len(source_set),1).cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+        preds = torch.stack([model(source_set[:][0].cuda(), y_source=source_set[:][1].cuda(), y_target=target_set[0][1].repeat(len(source_set),1).cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
     else:
-        preds = torch.stack([model(source_set[:][0].cpu(), target_set[0][1].repeat(len(source_set),1).cpu())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+        preds = torch.stack([model(source_set[:][0].cpu(), y_source=source_set[:][1].cpu(), y_target=target_set[0][1].repeat(len(source_set),1).cpu())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
     
     
     
@@ -125,7 +125,55 @@ def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_t
 
 
 
-def get_weighted_reproduction_error(point_dataset, model, source, target, metric : Literal["chamfer", "rmse", "swd"] = "rmse", n_trials=None, subset_size=0.5, lib_size=1e3,**kwargs):
+def get_reproduction_error(point_dataset, model, source=None, target=None, metric : Literal["chamfer", "rmse", "swd", "corr"] = "corr", n_trials=None, lib_size=1e3,**kwargs):
+
+    if n_trials is None:
+        print("Defaulting to coupon collector for n_trials...")
+        n_trials = _solve_coupon_collector(len(point_dataset))
+
+    match metric: # Add different case for each key
+        case "rmse":
+            _metric_func = _get_rmse_n_to_1
+
+        case "corr":
+            _metric_func = _get_corr_n_to_1
+
+        case "chamfer":
+            _metric_func = _get_chamf_n_to_1
+
+        case "swd":
+            _metric_func = _get_sliced_wasserstein_n_to_1
+        
+    
+    pred_profiles, preds = gen_profile_reproduction(point_dataset, model, source, target, n_trials=n_trials, lib_size=lib_size, **kwargs)
+
+    
+    match metric:
+        case "rmse" | "corr": # Add profile metrics here 
+            mean_profile = get_normalized_profile(point_dataset, target=target)
+            preds_mean_error = _metric_func(pred_profiles, mean_profile, **kwargs)
+        
+        case "chamfer" | "swd": # Add cloud metrics here
+            
+            if target is None:
+                orig = point_dataset[:][0]
+
+            else:
+                orig = _get_subset(point_dataset, target)[:][0]
+
+                
+            preds_mean_error = _metric_func(preds, orig, **kwargs)
+            
+ 
+
+    
+    return preds_mean_error, pred_profiles, preds
+
+
+"""
+TO BE REMOVED
+
+def get_weighted_reproduction_error(point_dataset, model, source=None, target=None, metric : Literal["chamfer", "rmse", "swd", "corr"] = "corr", n_trials=None, subset_size=0.5, lib_size=1e3,**kwargs):
 
     if n_trials is None:
         print("Defaulting to coupon collector for n_trials...")
@@ -167,4 +215,4 @@ def get_weighted_reproduction_error(point_dataset, model, source, target, metric
     
     return weighted_repr_error, repr_profiles, pred_profiles, samples, preds
 
-
+"""
