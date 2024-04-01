@@ -50,7 +50,7 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
         case "concat":
             
             factors_list = [torch.from_numpy(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).to_numpy().astype(int)).double() for factor in factors]
-            levels = [list(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).columns) for factor in factors]
+            levels = [[factor + "_" + elem for elem in list(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).columns)] for factor in factors]
             levels_dict = [{level[i] : tuple([0]*i + [1] + [0]*(len(level)-1-i)) for i in range(len(level)) } for level in levels]
 
             levels_dict_flat = {}
