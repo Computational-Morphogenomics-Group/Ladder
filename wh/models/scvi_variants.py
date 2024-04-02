@@ -297,11 +297,11 @@ class CSSCVI(nn.Module):
 
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, w_loc=[0,3], w_scale=[0.1,1], w_dim=10, len_attrs=[3,2],
-                 latent_dim=10, num_layers=1, hidden_dim=128, alpha=0.1, scale_factor=1.0):
+                 latent_dim=10, num_layers=1, hidden_dim=128, alphas=[0.1, 1], scale_factor=1.0):
 
         
         # Init params & hyperparams
-        self.alpha = alpha
+        self.alphas = alphas
         self.scale_factor = scale_factor
         self.num_genes = num_genes
         self.num_labels = num_labels
@@ -412,12 +412,12 @@ class CSSCVI(nn.Module):
                 cur_func = getattr(self, f"classifier_z_y{i}")
                 cur_logits = cur_func(z)
                 cur_dist =  dist.OneHotCategorical(logits=cur_logits)
-                classification_loss_z += cur_dist.log_prob(y[..., attr_track : next_track])
+                classification_loss_z += self.alphas[i] * cur_dist.log_prob(y[..., attr_track : next_track])
 
                 attr_track = next_track
                 
                                         
-            pyro.factor("classification_loss", self.alpha * classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
+            pyro.factor("classification_loss", classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
 
 
     
@@ -454,14 +454,14 @@ class CSSCVI(nn.Module):
                 cur_func = getattr(self, f"classifier_z_y{i}")
                 cur_logits = cur_func(z)
                 cur_dist =  dist.OneHotCategorical(logits=cur_logits)
-                classification_loss_z += cur_dist.log_prob(y[..., attr_track : next_track])
+                classification_loss_z += self.alphas[i] * cur_dist.log_prob(y[..., attr_track : next_track])
 
                 attr_track = next_track
             
             
                                 
             
-            return -self.alpha*classification_loss_z
+            return -1.0*classification_loss_z
         
     
     # Function to move points between conditions
