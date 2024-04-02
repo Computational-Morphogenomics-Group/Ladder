@@ -61,11 +61,9 @@ class SCVI(nn.Module):
             l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
             l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
-            print(z.shape)
             if self.batch_correction:
                 z = torch.cat([z, x[..., -1].view(-1,1)], dim=-1)
 
-            print(z.shape)
                 
                 
             gate_logits, mu = self.x_decoder(z)
@@ -147,7 +145,7 @@ class SCANVI(nn.Module):
     """
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, hidden_dim=128, num_layers=1,
-                 latent_dim=10, alpha=0.1, scale_factor=1.0):
+                 latent_dim=10, alpha=0.1, scale_factor=1.0, batch_correction=False):
          
 
         # Init params & hyperparams
@@ -158,6 +156,8 @@ class SCANVI(nn.Module):
         self.latent_dim = latent_dim
         self.l_loc = l_loc
         self.l_scale = l_scale
+        self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
+
 
 
 
@@ -165,7 +165,7 @@ class SCANVI(nn.Module):
 
         # Setup NN functions
         self.z2_decoder = _make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.x_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+        self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
         self.z2l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
         self.classifier = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_labels, last_config="default", dist_config="classifier")
         self.z1_encoder = _make_func(in_dims=self.num_labels + self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
@@ -192,6 +192,11 @@ class SCANVI(nn.Module):
             
             l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
             l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+
+            
+            if self.batch_correction:
+                z2 = torch.cat([z2, x[..., -1].view(-1,1)], dim=-1)
+
 
             
             gate_logits, mu = self.x_decoder(z2)
@@ -252,6 +257,10 @@ class SCANVI(nn.Module):
         z2_loc, z2_scale = self.z2_decoder(z1_y)
         z2 = pyro.sample("z2", dist.Normal(z2_loc, z2_scale).to_event(1))
 
+        
+        if self.batch_correction:
+            z2 = torch.cat([z2, x[..., -1].view(-1,1)], dim=-1)
+
 
         gate_logits, mu = self.x_decoder(z2)
         nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
@@ -308,7 +317,7 @@ class CSSCVI(nn.Module):
 
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, w_loc=[0,3], w_scale=[0.1,1], w_dim=10, len_attrs=[3,2],
-                 latent_dim=10, num_layers=1, hidden_dim=128, alphas=[0.1, 1], scale_factor=1.0):
+                 latent_dim=10, num_layers=1, hidden_dim=128, alphas=[0.1, 1], scale_factor=1.0, batch_correction=False):
 
         
         # Init params & hyperparams
@@ -323,13 +332,14 @@ class CSSCVI(nn.Module):
         self.w_locs = w_loc # Prior means for attribute being 0,1 (indices correspond to attribute value)
         self.w_scales = w_scale # Prior scales for attribute being 0,1 (indices correspond to attribute value)
         self.len_attrs=len_attrs # List keeping number of possibilities for each attribute
-
+        self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
+        
         super(CSSCVI, self).__init__()
 
         
         # Setup NN functions
         self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.x_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+        self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
         self.rho_l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
 
 
@@ -379,6 +389,10 @@ class CSSCVI(nn.Module):
             
             l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
             l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+
+            
+            if self.batch_correction:
+                rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
 
 
             gate_logits, mu = self.x_decoder(rho)
@@ -517,6 +531,9 @@ class CSSCVI(nn.Module):
         zw = torch.cat([z, w], dim=-1)
         rho_loc, rho_scale = self.rho_decoder(zw)
         rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+
+        if self.batch_correction:
+            rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
             
 
         gate_logits, mu = self.x_decoder(rho)
