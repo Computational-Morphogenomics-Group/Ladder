@@ -23,7 +23,7 @@ class SCVI(nn.Module):
     """
     
     def __init__(self, num_genes, l_loc, l_scale, hidden_dim=128, num_layers=1,
-                 latent_dim=10, scale_factor=1.0):
+                 latent_dim=10, scale_factor=1.0, batch_correction=False):
          
 
         # Init params & hyperparams
@@ -32,19 +32,21 @@ class SCVI(nn.Module):
         self.latent_dim = latent_dim
         self.l_loc = l_loc
         self.l_scale = l_scale
+        self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
+
 
 
 
         super(SCVI, self).__init__()
 
         # Setup NN functions
-        self.z_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.x_decoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+        self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
         self.zl_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
         
 
         self.epsilon = 0.006
 
+    
     # Model
     def model(self, x, y=None):
         pyro.module("scvi", self)
@@ -59,7 +61,13 @@ class SCVI(nn.Module):
             l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
             l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
-            
+            print(z.shape)
+            if self.batch_correction:
+                z = torch.cat([z, x[..., -1].view(-1,1)], dim=-1)
+
+            print(z.shape)
+                
+                
             gate_logits, mu = self.x_decoder(z)
             nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
             x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta,
@@ -93,6 +101,9 @@ class SCVI(nn.Module):
 
         ## Decode
         theta = dict(pyro.get_param_store())["inverse_dispersion"].detach()
+
+        if self.batch_correction:
+            z_enc = torch.cat([z_enc, x[..., -1].view(-1,1)], dim=-1)
 
         gate_logits, mu = self.x_decoder(z_enc)
         nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()

@@ -44,8 +44,10 @@ def _get_subset(point_dataset, target):
     return utils.TensorDataset(tup[0], tup[1])
 
 
-def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat"):
+def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", inc_batch = False):
 
+    assert "batch" not in factors
+    
     match style:
         case "concat":
             
@@ -60,10 +62,14 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
 
             levels_cat = {" - ".join(prod) : tuple(chain(*[levels_dict_flat[prod[i]] for i in range(len(prod))])) for prod in product(*[list(level.keys()) for level in levels_dict])}
 
-    
+            if inc_batch:
+                x = torch.cat([torch.from_numpy(counts.to_numpy()), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
+            
+            else:
+                x = torch.from_numpy(counts.to_numpy()).double()
 
+                
             y = torch.cat(factors_list, dim = -1)
-            x = torch.from_numpy(counts.to_numpy()).double()
 
         case "one-hot":
             
@@ -71,11 +77,17 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             cols = list(pd.get_dummies(metadata.apply(lambda x : " - ".join(x[factors]), axis=1)).columns)
             levels_cat = { cols[i] : tuple([0]*i + [1] + [0]*(len(cols)-1-i)) for i in range(len(cols))}
 
+            if inc_batch:
+                x = torch.cat([torch.from_numpy(counts.to_numpy()), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
+            
+            else:
+                x = torch.from_numpy(counts.to_numpy()).double()
+
             y = factors_list
-            x = torch.from_numpy(counts.to_numpy()).double()
             
 
     return utils.TensorDataset(x,y), levels_cat
+
 
 
 def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u", "u"] = "o_o", split_pcts = [0.8, 0.2], batch_size=256, source=(1,0,0,0,1), target=(0,1,0,0,1)):
