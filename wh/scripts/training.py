@@ -17,6 +17,51 @@ import numpy as np
 def get_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+# Helper to train basic linear regression
+def train_lin_reg(model, train_loader, test_loader, learning_rate=1e-3, epochs=1000, device=get_device()):
+
+    model = model.double().to(device)
+    
+    loss = torch.nn.MSELoss() 
+    opt = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    
+    for epoch in range(epochs):
+        train_loss, test_loss = [], []
+
+
+        model.train()
+        for x,y in train_loader:
+            x,y = x.to(device), y.to(device)
+            
+            out = model(x)
+            loss_val = loss(out, y)
+
+            train_loss.append(loss_val.item())
+
+            
+
+            opt.zero_grad()
+            loss_val.backward()
+            opt.step()
+
+
+        model.eval()
+        with torch.no_grad():
+            for x,y in test_loader:
+                x,y = x.to(device), y.to(device)
+
+                out = model(x)
+                loss_val = loss(out, y)
+
+                test_loss.append(loss_val.item())
+
+
+        print(f"Epoch : {epoch + 1} // Train Loss : {np.mean(train_loss)} // Test Loss : {np.mean(test_loss)}")
+
+    return model
+
                   
 # Helper to train Pyro models
 def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 4e-4, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}):

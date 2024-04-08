@@ -150,6 +150,22 @@ class MLP(nn.Module):
 
 
 
+class LinRegressor(nn.Module):
+    """
+    Class implementing linear regression 
+    """
+    def __init__(self, dim):
+        super(LinRegressor, self).__init__()
+        self.linear = torch.nn.Linear(dim, dim)
+        nn.init.xavier_normal_(self.linear.weight.data)
+
+    def forward(self, x):
+        out = self.linear(x)
+        return out
+
+
+    
+
 ## Next 3 helpers taken from https://pyro.ai/examples/scanvi.html
 
 def _split_in_half(t):
@@ -174,7 +190,10 @@ def _make_fc(dims):
     """
     layers = []
     for in_dim, out_dim in zip(dims, dims[1:]):
-        layers.append(nn.Linear(in_dim, out_dim))
+        lin = nn.Linear(in_dim, out_dim)
+        nn.init.zeros_(lin.weight.data)
+        
+        layers.append(lin)
         layers.append(nn.BatchNorm1d(out_dim))
         layers.append(nn.ReLU())
     return nn.Sequential(*layers[:-1])

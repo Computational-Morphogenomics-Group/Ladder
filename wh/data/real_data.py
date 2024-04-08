@@ -35,6 +35,7 @@ class ConcatTensorDataset(utils.ConcatDataset):
 
 
 
+############################ Internal Calls ############################
 def _get_idxs(point_dataset, target):
     return [idx for idx in range(len(point_dataset)) if (point_dataset[idx][1] == target).all()]
 
@@ -42,8 +43,15 @@ def _get_idxs(point_dataset, target):
 def _get_subset(point_dataset, target):
     tup = point_dataset[_get_idxs(point_dataset, target)]
     return utils.TensorDataset(tup[0], tup[1])
+####################################################################################
 
 
+
+
+############################ Funcitons ############################
+
+
+# Helper to get dataset for CVAE models
 def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", inc_batch = False):
 
     assert "batch" not in factors
@@ -90,6 +98,7 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
 
 
 
+# Helper to go from dataset to train-test split loaders
 def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u", "u"] = "o_o", split_pcts = [0.8, 0.2], batch_size=256, source=(1,0,0,0,1), target=(0,1,0,0,1)):
 
     np.random.seed(42)
@@ -129,5 +138,22 @@ def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u", "
     return train_set, test_set, train_loader, test_loader
 
             
-            
+
+
+# Helper to train linear regression with optional matchings
+def make_lin_reg_data(counts, metadata, batch_size=128, split_factor="species", group_names = ["0", "1"], split_pcts=[0.8, 0.2], matchings : Literal["random", "ot"] = "random"):
+    x,y = counts.loc[metadata.groupby(split_factor, observed=True).get_group(group_names[0]).index], counts.loc[metadata.groupby(split_factor, observed=True).get_group(group_names[1]).index]
+
+    match matchings:
+        case "random":
+            dataset = utils.TensorDataset(torch.from_numpy(x.to_numpy()).double(), torch.from_numpy(y.sample(len(x)).to_numpy()).double())
+            train_set, test_set = utils.random_split(dataset, split_pcts)
+            train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
+
+        case "ot":
+            pass
+
+    
+    return train_set, test_set, train_loader, test_loader
+
           
