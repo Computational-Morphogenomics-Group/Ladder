@@ -85,6 +85,16 @@ class AnndataConverter(MetadataConverter):
         # Append metadata to obs, no need for redundant factors in higher level
         df = pd.DataFrame(self.map_to_df(val_tup[2]))
         df.columns = self.df_view.columns
+
+        # Explicit categorical typecasting to play well with metrics
+        for colname in df:
+            if any(isinstance(value, (int, float)) for value in df[colname]):
+                df[colname] = df[colname].astype(float)
+
+            else:
+                df[colname] = df[colname].astype("category")
+    
+        
         anndat.obs = df
 
         return anndat
