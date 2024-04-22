@@ -86,7 +86,7 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
 
         model.train()
     
-        for x, y in train_loader:
+        for x, y, _ in train_loader:
             x, y = x.to(device), y.to(device)
             loss = svi.step(x, y)
             losses.append(loss)
@@ -94,7 +94,7 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
     
         model.eval()
         with torch.no_grad(): 
-            for x,y in test_loader:
+            for x, y, _ in test_loader:
                 x, y = x.to(device), y.to(device)
                 test_loss = elbo.loss(model.model, model.guide, x,y)
                 losses_test.append(test_loss)
@@ -124,7 +124,7 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
     loss_fn = lambda model, guide, x, y: pyro.infer.Trace_ELBO().differentiable_loss(model, guide, x, y)
     
     # Params & optims
-    x,y = next(iter(train_loader))
+    x,y,_ = next(iter(train_loader))
     with pyro.poutine.trace(param_only=True) as param_capture:
         loss = loss_fn(model.model, model.guide, x.to(device), y.to(device))
 
@@ -159,7 +159,7 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
             case "disjoint":
 
                 # Classifier trains over dataset
-                for x, y in train_loader:
+                for x, y, _ in train_loader:
                     x, y = x.to(device), y.to(device)
                     log_prob_loss = model.adverserial(x,y).mean()
                     prob_losses.append(log_prob_loss.detach().cpu())
@@ -171,7 +171,7 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
 
                 # Other parameters also train
                 if epoch+1 > warmup:
-                    for x, y in train_loader:
+                    for x, y, _ in train_loader:
                         x, y = x.to(device), y.to(device)
                         loss = loss_fn(model.model, model.guide, x, y)
                         losses.append(loss.detach().cpu())
@@ -184,7 +184,7 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
             case "joint":
 
                 # Train at the same time 
-                for x, y in train_loader:
+                for x, y, _ in train_loader:
                     x, y = x.to(device), y.to(device)
 
 
@@ -214,7 +214,7 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
         # Testing
         model.eval()
         with torch.no_grad(): 
-            for x,y in test_loader:
+            for x, y, _ in test_loader:
                 x, y = x.to(device), y.to(device)
                 test_loss = loss_fn(model.model, model.guide, x,y)
                 losses_test.append(test_loss.detach().cpu())

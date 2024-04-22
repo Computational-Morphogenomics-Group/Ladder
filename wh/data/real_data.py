@@ -127,6 +127,15 @@ def _concat_cat_df(metadata):
 def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", inc_batch = False):
 
     assert "batch" not in factors
+
+    # Pre-process metadata to remove object columns:
+    for colname in metadata.dtypes[metadata.dtypes == "object"].index:
+        metadata[colname] = metadata[colname].astype("category")
+
+
+    # Decide on style of labeling:
+    # Concat means one-hot attributes will be concatenated
+    # One hot means every attribute combination will be considered a single one-hot label
     
     match style:
         case "concat":
@@ -166,7 +175,8 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             y = factors_list
             
 
-    return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat
+    
+    return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat, MetadataConverter(metadata)
 
 
 
