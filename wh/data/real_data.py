@@ -204,7 +204,7 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             
 
     
-    return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat, MetadataConverter(metadata)
+    return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat, AnndataConverter(metadata)
 
 
 
