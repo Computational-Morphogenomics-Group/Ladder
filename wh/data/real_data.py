@@ -10,6 +10,63 @@ from itertools import combinations, product, permutations, chain
 from typing import Iterable, Literal
 
 
+
+# Helper to convert between numeric and categorical views of metadata
+# tensor can be a subset of the original metadata tensor
+# metadata should be the full original metadata object at all times to preserve category encoding
+class MetadataConverter:
+
+    def __init__(self, metadata_df : pd.DataFrame):
+        
+        self.df_view = metadata_df
+        self.num_cols = metadata_df.shape[1]
+
+
+    def _tensor_to_cat(self, met_val_string : torch.Tensor):
+
+        stack_list = []
+
+        for i, colname in enumerate(self.df_view):
+            # Decide on single or multi value
+            if len(met_val_string.shape) == 1:
+                cur_col = met_val_string[i]
+
+            else:
+                cur_col = met_val_string[:,i]
+
+        
+            # Do reverse mapping - also decide again on single multi val     
+            if type(self.df_view[colname].dtype) == pd.core.dtypes.dtypes.CategoricalDtype:
+                if len(met_val_string.shape) == 1:
+                    stack_list.append(self.df_view.iloc[:,i].cat.categories[int(cur_col)])
+                
+                else:
+                    stack_list.append(np.array([self.df_view.iloc[:,i].cat.categories[int(item)] for item in cur_col]).reshape(-1,1))
+            
+            
+            else:
+                if len(met_val_string.shape) == 1:
+                    stack_list.append(cur_col.numpy())
+                
+                else:
+                    stack_list.append(cur_col.numpy().reshape(-1,1))
+
+            i += 1
+    
+        return np.hstack(stack_list)
+        
+            
+
+
+    def map_to_df(self, met_val_string : torch.Tensor):
+        assert ( (len(met_val_string.shape) == 2) and (met_val_string.shape[1] == self.num_cols) ) or ( (len(met_val_string.shape) == 1) and (met_val_string.shape[0] == self.num_cols) ), "Input doesn't match defined columns in metadata"
+
+        return self._tensor_to_cat(met_val_string)
+
+
+
+
+
 class ConcatTensorDataset(utils.ConcatDataset):
     r"""ConcatDataset of TensorDatasets which supports getting slices and index lists/arrays.
     This dataset allows the use of slices, e.g. ds[2:4] and of arrays or lists of multiple indices 
@@ -43,6 +100,21 @@ def _get_idxs(point_dataset, target):
 def _get_subset(point_dataset, target):
     tup = point_dataset[_get_idxs(point_dataset, target)]
     return utils.TensorDataset(tup[0], tup[1])
+
+
+def _concat_cat_df(metadata):
+
+    stack_list = []
+
+    for colname in metadata:
+        if type(metadata[colname].dtype) == pd.core.dtypes.dtypes.CategoricalDtype:
+            stack_list.append(metadata[colname].cat.codes.to_numpy().reshape(-1,1))
+
+        else:
+            stack_list.append(metadata[colname].to_numpy().reshape(-1,1))
+
+    return torch.from_numpy(np.hstack(stack_list)).double()
+        
 ####################################################################################
 
 
@@ -94,7 +166,7 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             y = factors_list
             
 
-    return utils.TensorDataset(x,y), levels_cat
+    return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat
 
 
 
