@@ -8,6 +8,8 @@ import pandas as pd
 import torch.utils.data as utils
 from itertools import combinations, product, permutations, chain
 from typing import Iterable, Literal
+import anndata as ad
+
 
 
 
@@ -63,6 +65,32 @@ class MetadataConverter:
 
         return self._tensor_to_cat(met_val_string)
 
+
+
+
+# Helper to convert tuple torch tensors into anndata views for further use
+# tensor tuples are expected as (counts, labels, metadata)
+# the original metadata df is also needed to preserve categories
+class AnndataConverter(MetadataConverter):
+
+    def __init__(self, metadata_df : pd.DataFrame):
+         MetadataConverter.__init__(self, metadata_df)
+
+    
+    def map_to_anndat(self, val_tup):
+
+        # Make object from the counts
+        anndat = ad.AnnData(val_tup[0].numpy())
+
+        # Append metadata to obs, no need for redundant factors in higher level
+        df = pd.DataFrame(self.map_to_df(val_tup[2]))
+        df.columns = self.df_view.columns
+        anndat.obs = df
+
+        return anndat
+
+        
+    
 
 
 
