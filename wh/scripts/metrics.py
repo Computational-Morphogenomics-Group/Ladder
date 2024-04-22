@@ -10,7 +10,12 @@ from tqdm import trange
 import math
 from typing import Literal
 import ot
-from scipy.stats import pearsonr   
+from scipy.stats import pearsonr
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import LabelEncoder
+from sklearn.cluster import KMeans
+from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
+
 
 
 
@@ -69,7 +74,7 @@ def _get_sliced_wasserstein_n_to_1(samples, orig, projections=1e3, verbose=False
 
 ####################################
 ####################################
-#### Functions #####
+#### RECONSTRUCTION - FUNCTIONS #####
 ####################################
 ####################################
 
@@ -170,49 +175,62 @@ def get_reproduction_error(point_dataset, model, source=None, target=None, metri
     return preds_mean_error, pred_profiles, preds
 
 
-"""
-TO BE REMOVED
 
-def get_weighted_reproduction_error(point_dataset, model, source=None, target=None, metric : Literal["chamfer", "rmse", "swd", "corr"] = "corr", n_trials=None, subset_size=0.5, lib_size=1e3,**kwargs):
 
-    if n_trials is None:
-        print("Defaulting to coupon collector for n_trials...")
-        n_trials = _solve_coupon_collector(len(point_dataset))
 
-    match metric: # Add different case for each key
-        case "rmse":
-            _metric_func = _get_rmse_n_to_1
+####################################
+####################################
+####### MIXING - FUNCTIONS #########
+####################################
+####################################
 
-        case "corr":
-            _metric_func = _get_corr_n_to_1
-
-        case "chamfer":
-            _metric_func = _get_chamf_n_to_1
-
-        case "swd":
-            _metric_func = _get_sliced_wasserstein_n_to_1
-        
+def _prep_label_data(anndata : ad.AnnData, test_for : str, embed : str):
     
-    repr_profiles, samples = self_profile_reproduction(point_dataset, target=target, subset_size=subset_size, n_trials=n_trials, lib_size=lib_size, **kwargs)
-    pred_profiles, preds = gen_profile_reproduction(point_dataset, model, source, target, n_trials=n_trials, lib_size=lib_size, **kwargs)
+    # Grab embeddings and metadata
+    X = anndata.obsm[embed]
+    y = anndata.obs[test_for]
+
+    # Get encodings for labels
+    y_enc = LabelEncoder().fit_transform(list(y))
 
     
-    match metric:
-        case "rmse" | "corr": # Add profile metrics here 
-            mean_profile = get_normalized_profile(point_dataset, target=target)
-            repr_mean_error = _metric_func(repr_profiles, mean_profile, **kwargs)
-            preds_mean_error = _metric_func(pred_profiles, mean_profile, **kwargs)
-        
-        case "chamfer" | "swd": # Add cloud metrics here
-            orig = _get_subset(point_dataset, target)[:][0]
-            repr_mean_error = _metric_func(samples, orig, **kwargs)
-            preds_mean_error = _metric_func(preds, orig, **kwargs)
-            
+    return X, y_enc
+
+
+# KNN Classifier Error with euclidean distance
+def knn_error(anndata : ad.AnnData, test_for : str, embed : str, n_neighbors=15):
+
+    # Prep data
+    X, y = _prep_label_data(anndata, test_for, embed)
+    
+    # Run kNN
+    model = KNeighborsClassifier(n_neighbors=n_neighbors).fit(X,y)
+
+    return model.score(X,y)
+
+
+# Run k-means for nmi / ari
+def _run_k_means(anndata : ad.AnnData, test_for : str, embed : str):
+
+    # Prep data
+    X, y = _prep_label_data(anndata, test_for, embed)
+
+    # Run k-Means
+    y_pred = KMeans(n_clusters=len(np.unique(y)), init='k-means++', n_init='auto', max_iter=300, random_state=42).fit_predict(X)
+
+    return y, y_pred
 
     
-    weighted_repr_error = preds_mean_error / repr_mean_error
-
     
-    return weighted_repr_error, repr_profiles, pred_profiles, samples, preds
+def kmeans_nmi(anndata : ad.AnnData, test_for : str, embed : str):
+    y, y_pred = _run_k_means(anndata, test_for, embed)
+    
+    return normalized_mutual_info_score(y, y_pred)
 
-"""
+
+
+def kmeans_ari(anndata : ad.AnnData, test_for : str, embed : str):
+    y, y_pred = _run_k_means(anndata, test_for, embed)
+    
+    return adjusted_rand_score(y, y_pred)
+    
