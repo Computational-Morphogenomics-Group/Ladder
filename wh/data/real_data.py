@@ -9,6 +9,7 @@ import torch.utils.data as utils
 from itertools import combinations, product, permutations, chain
 from typing import Iterable, Literal
 import anndata as ad
+from scipy.sparse import issparse, csr_matrix
 
 
 
@@ -157,6 +158,19 @@ def _concat_cat_df(metadata):
 def _factors_to_col(anndat : ad.AnnData, factors : list):
  anndat.obs["factors"] = anndat.obs.apply(lambda x : "_".join([x[factor] for factor in factors]), axis=1).astype('category')
  return anndat
+
+
+def _process_array(arr):
+    if isinstance(arr, np.ndarray):  # Check if array is dense
+        result = arr
+    
+    elif issparse(arr):  # Check if array is sparse
+        result = arr.todense()
+    
+    else:  # Convert to dense array if not already
+        result = np.asarray(arr)
+    
+    return result
         
 ####################################################################################
 
@@ -169,10 +183,15 @@ def _factors_to_col(anndat : ad.AnnData, factors : list):
 # Helper to get dataset for CVAE models
 
 ## TODO: Add batch dim by name
-## TODO: Add sparse matrix densifier
+
 def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", inc_batch = False):
 
-    assert "batch" not in factors
+    # Small checks for batch and sparsity 
+    assert "batch" not in factors, "Batch should not be specified as factor"
+
+    counts = _process_array(counts) 
+
+    # Counts 
 
     # Pre-process metadata to remove object columns:
     for colname in metadata.dtypes[metadata.dtypes == "object"].index:
