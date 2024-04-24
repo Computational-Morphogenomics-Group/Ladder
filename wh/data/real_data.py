@@ -162,6 +162,9 @@ def _concat_cat_df(metadata):
 
 
 # Helper to get dataset for CVAE models
+
+## TODO: Add batch dim by name
+## TODO: Add sparse matrix densifier
 def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", inc_batch = False):
 
     assert "batch" not in factors
@@ -178,8 +181,8 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
     match style:
         case "concat":
             
-            factors_list = [torch.from_numpy(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).to_numpy().astype(int)).double() for factor in factors]
-            levels = [[factor + "_" + elem for elem in list(pd.get_dummies(counts.index.map(lambda x :metadata.loc[x][factor])).columns)] for factor in factors]
+            factors_list = [torch.from_numpy(pd.get_dummies(metadata[factor]).to_numpy().astype(int)).double() for factor in factors]
+            levels = [[factor + "_" + elem for elem in list(pd.get_dummies(metadata[factor]).columns)] for factor in factors]
             levels_dict = [{level[i] : tuple([0]*i + [1] + [0]*(len(level)-1-i)) for i in range(len(level)) } for level in levels]
 
             levels_dict_flat = {}
@@ -190,10 +193,10 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             levels_cat = {" - ".join(prod) : tuple(chain(*[levels_dict_flat[prod[i]] for i in range(len(prod))])) for prod in product(*[list(level.keys()) for level in levels_dict])}
 
             if inc_batch:
-                x = torch.cat([torch.from_numpy(counts.to_numpy()), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
+                x = torch.cat([torch.from_numpy(counts), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
             
             else:
-                x = torch.from_numpy(counts.to_numpy()).double()
+                x = torch.from_numpy(counts).double()
 
                 
             y = torch.cat(factors_list, dim = -1)
@@ -205,10 +208,10 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             levels_cat = { cols[i] : tuple([0]*i + [1] + [0]*(len(cols)-1-i)) for i in range(len(cols))}
 
             if inc_batch:
-                x = torch.cat([torch.from_numpy(counts.to_numpy()), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
+                x = torch.cat([torch.from_numpy(counts), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
             
             else:
-                x = torch.from_numpy(counts.to_numpy()).double()
+                x = torch.from_numpy(counts).double()
 
             y = factors_list
             
