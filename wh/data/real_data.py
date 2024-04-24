@@ -152,6 +152,11 @@ def _concat_cat_df(metadata):
             stack_list.append(metadata[colname].to_numpy().reshape(-1,1))
 
     return torch.from_numpy(np.hstack(stack_list)).double()
+
+
+def _factors_to_col(anndat : ad.AnnData, factors : list):
+ anndat.obs["factors"] = anndat.obs.apply(lambda x : "_".join([x[factor] for factor in factors]), axis=1).astype('category')
+ return anndat
         
 ####################################################################################
 
