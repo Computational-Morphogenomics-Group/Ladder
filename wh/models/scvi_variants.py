@@ -370,9 +370,10 @@ class CSSCVI(nn.Module):
             y_s = []
             attr_track = 0
             
-            for i in range(len(self.len_attrs)):
+            for i in pyro.plate("len_attrs", len(self.len_attrs)):
                 next_track = attr_track + self.len_attrs[i]
-                y_s.append(pyro.sample(f"y_{i}", dist.OneHotCategorical(logits=x.new_zeros(self.len_attrs[i])), obs=y[..., attr_track : next_track]))
+                y_attr = pyro.sample(f"y_{i}", dist.OneHotCategorical(logits=x.new_zeros(self.len_attrs[i])), obs=y[..., attr_track : next_track])
+                y_s.append(y_attr)
                 
                 attr_track = next_track
                         
@@ -431,7 +432,7 @@ class CSSCVI(nn.Module):
             classification_loss_z = 0
             attr_track = 0
             
-            for i in range(len(self.len_attrs)):
+            for i in pyro.plate("len_attrs", len(self.len_attrs)):
                 next_track = attr_track + self.len_attrs[i]
                 
                 cur_func = getattr(self, f"classifier_z_y{i}")
@@ -473,7 +474,7 @@ class CSSCVI(nn.Module):
             classification_loss_z = 0
             attr_track = 0
             
-            for i in range(len(self.len_attrs)):
+            for i in pyro.plate("len_atrrs", len(self.len_attrs)):
                 next_track = attr_track + self.len_attrs[i]
                 
                 cur_func = getattr(self, f"classifier_z_y{i}")
