@@ -190,10 +190,7 @@ def _make_fc(dims):
     """
     layers = []
     for in_dim, out_dim in zip(dims, dims[1:]):
-        lin = nn.Linear(in_dim, out_dim)
-        nn.init.zeros_(lin.weight.data)
-        
-        layers.append(lin)
+        layers.append(nn.Linear(in_dim, out_dim))
         layers.append(nn.BatchNorm1d(out_dim))
         layers.append(nn.ReLU())
     return nn.Sequential(*layers[:-1])
