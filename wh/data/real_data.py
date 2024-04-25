@@ -288,17 +288,43 @@ def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u", "
 
 
 # Helper to train linear regression with optional matchings
-def make_lin_reg_data(counts, metadata, batch_size=128, split_factor="species", group_names = ["0", "1"], split_pcts=[0.8, 0.2], matchings : Literal["random", "ot"] = "random"):
-    x,y = counts.loc[metadata.groupby(split_factor, observed=True).get_group(group_names[0]).index], counts.loc[metadata.groupby(split_factor, observed=True).get_group(group_names[1]).index]
+def make_lin_reg_data(counts, metadata, split_factor, labels, group_names, batch_size=128, split_pcts=[0.8, 0.2], matchings : Literal["random", "ot"] = "random"):
 
-    match matchings:
-        case "random":
-            dataset = utils.TensorDataset(torch.from_numpy(x.to_numpy()).double(), torch.from_numpy(y.sample(len(x)).to_numpy()).double())
-            train_set, test_set = utils.random_split(dataset, split_pcts)
-            train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
+    # Densify
+    counts = _process_array(counts) 
 
-        case "ot":
-            pass
+    
+    sources, targets = [], []
+
+    for lab in metadata[labels].cat.categories:
+        lab_locs = np.where(metadata.index.isin(metadata[metadata[labels] == lab].index))
+        sub_metadata, sub_counts = metadata.iloc[lab_locs], counts[lab_locs]
+
+        locs_source, locs_target = np.where(sub_metadata.index.isin(sub_metadata.groupby("factors", observed=True).get_group(group_names[0]).index)), np.where(sub_metadata.index.isin(sub_metadata.groupby("factors", observed=True).get_group(group_names[1]).index))    
+        x,y = sub_counts[locs_source], sub_counts[locs_target]
+    
+        x = torch.from_numpy(x).double()
+
+        match matchings:
+            case "random":
+                y = torch.from_numpy(y[np.random.choice(y.shape[0], x.shape[0], replace=True)]).double()
+
+            case "ot":
+                print("Not implemented")
+                pass
+
+        sources.append(x) 
+        targets.append(y)
+    
+
+    
+
+    x,y = torch.vstack(sources), torch.vstack(targets)
+
+    dataset = utils.TensorDataset(x, y)
+    train_set, test_set = utils.random_split(dataset, split_pcts)
+    train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
+
 
     
     return train_set, test_set, train_loader, test_loader

@@ -160,7 +160,7 @@ class LinRegressor(nn.Module):
         nn.init.xavier_normal_(self.linear.weight.data)
 
     def forward(self, x):
-        out = self.linear(x)
+        out = torch.clamp(self.linear(x), min=0)
         return out
 
 
