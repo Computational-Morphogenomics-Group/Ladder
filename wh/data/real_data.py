@@ -138,7 +138,7 @@ def _get_idxs(point_dataset, target):
 
 def _get_subset(point_dataset, target):
     tup = point_dataset[_get_idxs(point_dataset, target)]
-    return utils.TensorDataset(tup[0], tup[1])
+    return utils.TensorDataset(*tup)
 
 
 def _concat_cat_df(metadata):
