@@ -198,14 +198,14 @@ def _prep_label_data(anndata : ad.AnnData, test_for : str, embed : str):
 
 
 # KNN Classifier Error with euclidean distance
-def knn_error(anndata : ad.AnnData, test_for : str, embed : str, n_neighbors=15):
+def knn_error(anndata : ad.AnnData, test_for : str, embed : str, n_neighbors=30):
 
     # Prep data
     X, y = _prep_label_data(anndata, test_for, embed)
     
     # Run kNN
     model = KNeighborsClassifier(n_neighbors=n_neighbors).fit(X,y)
-
+    
     return model.score(X,y)
 
 

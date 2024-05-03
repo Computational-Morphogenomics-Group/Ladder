@@ -6,7 +6,7 @@ import pyro
 import pyro.distributions as dist
 import pyro.poutine as poutine
 
-from.basics import _broadcast_inputs, _make_func
+from .basics import _broadcast_inputs, _make_func
 import numpy as np
 
 #================================================================================================
