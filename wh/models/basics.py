@@ -245,7 +245,7 @@ class _make_func(nn.Module):
         return norm_loc, norm_scale, l_loc, l_scale
     
     
-    def __init__(self, in_dims, hidden_dims, out_dim, last_config : Literal["default", "+lognormal", "reparam"] = "default", dist_config : Literal["normal", "zinb", "categorical", "normal+lognormal", "classifier"] = "normal"):
+    def __init__(self, in_dims, hidden_dims, out_dim, last_config : Literal["default", "+lognormal", "reparam"] = "default", dist_config : Literal["normal", "zinb", "categorical", "+lognormal", "classifier"] = "normal"):
         super().__init__()
 
         # Layer configurations
