@@ -10,6 +10,8 @@ from itertools import combinations, product, permutations, chain
 from typing import Iterable, Literal
 import anndata as ad
 from scipy.sparse import issparse, csr_matrix
+import ot
+
 
 
 
@@ -303,16 +305,23 @@ def make_lin_reg_data(counts, metadata, split_factor, labels, group_names, batch
         locs_source, locs_target = np.where(sub_metadata.index.isin(sub_metadata.groupby("factors", observed=True).get_group(group_names[0]).index)), np.where(sub_metadata.index.isin(sub_metadata.groupby("factors", observed=True).get_group(group_names[1]).index))    
         x,y = sub_counts[locs_source], sub_counts[locs_target]
     
-        x = torch.from_numpy(x).double()
+        
 
         match matchings:
             case "random":
                 y = torch.from_numpy(y[np.random.choice(y.shape[0], x.shape[0], replace=True)]).double()
 
             case "ot":
-                print("Not implemented")
-                pass
+                # Set up basic ot
+                a, b = np.ones((x.shape[0],)) / x.shape[0], np.ones((y.shape[0],)) / y.shape[0]
+                M = ot.dist(x, y, metric="correlation")
+                Gs = ot.sinkhorn(a, b, M, 1e-1)
+            
+                idxs = [row.argmax() for row in Gs]
+                y = torch.from_numpy(y[idxs]).double()
 
+        
+        x = torch.from_numpy(x).double()
         sources.append(x) 
         targets.append(y)
     
