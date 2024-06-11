@@ -8,7 +8,8 @@ import pyro.poutine as poutine
 
 from typing import Literal
 
-from .basics import _broadcast_inputs, _make_func
+from .basics import _broadcast_inputs, _make_func, _split_in_half
+from torch.nn.functional import softplus, softmax
 import numpy as np
 
 #================================================================================================
@@ -25,7 +26,7 @@ class SCVI(nn.Module):
     """
     
     def __init__(self, num_genes, l_loc, l_scale, hidden_dim=128, num_layers=1,
-                 latent_dim=10, scale_factor=1.0, batch_correction=False):
+                 latent_dim=10, scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal"] = "ZINB"):
          
 
         # Init params & hyperparams
@@ -35,14 +36,21 @@ class SCVI(nn.Module):
         self.l_loc = l_loc
         self.l_scale = l_scale
         self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
-
+        self.reconstruction = reconstruction
 
 
 
         super(SCVI, self).__init__()
 
         # Setup NN functions
-        self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+        match self.reconstruction:
+            case "ZINB":
+                self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+
+            case "Normal":
+                self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="normal")
+
+        
         self.zl_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
         
 
@@ -66,12 +74,17 @@ class SCVI(nn.Module):
             if self.batch_correction:
                 z = torch.cat([z, x[..., -1].view(-1,1)], dim=-1)
 
+
+            match self.reconstruction:
                 
-                
-            gate_logits, mu = self.x_decoder(z)
-            nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
-            x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta,
-                                                       logits=nb_logits, validate_args=False)
+                case "ZINB":
+                    gate_logits, mu = self.x_decoder(z)
+                    nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                    x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+
+                case "Normal":
+                    x_loc, x_scale = self.x_decoder(z)
+                    x_dist = dist.Normal(x_loc, x_scale)
             
             
             pyro.sample("x", x_dist.to_event(1), obs=x)
@@ -105,10 +118,16 @@ class SCVI(nn.Module):
         if self.batch_correction:
             z_enc = torch.cat([z_enc, x[..., -1].view(-1,1)], dim=-1)
 
-        gate_logits, mu = self.x_decoder(z_enc)
-        nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
-        x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta,
-                                                       logits=nb_logits, validate_args=False)
+        match self.reconstruction:
+            
+            case "ZINB":
+                gate_logits, mu = self.x_decoder(z_enc)
+                nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+
+            case "Normal":
+                x_loc, x_scale = self.x_decoder(z_enc)
+                x_dist = dist.Normal(x_loc, x_scale)
             
             
         x_rec = pyro.sample("x", x_dist.to_event(1))
@@ -147,7 +166,7 @@ class SCANVI(nn.Module):
     """
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, hidden_dim=128, num_layers=1,
-                 latent_dim=10, alpha=0.1, scale_factor=1.0, batch_correction=False):
+                 latent_dim=10, alpha=0.1, scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal"] = "ZINB"):
          
 
         # Init params & hyperparams
@@ -159,7 +178,7 @@ class SCANVI(nn.Module):
         self.l_loc = l_loc
         self.l_scale = l_scale
         self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
-
+        self.reconstruction = reconstruction
 
 
 
@@ -167,7 +186,14 @@ class SCANVI(nn.Module):
 
         # Setup NN functions
         self.z2_decoder = _make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+
+        match self.reconstruction:
+            case "ZINB":
+                self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+
+            case "Normal":
+                self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="normal")
+                
         self.z2l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
         self.classifier = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_labels, last_config="default", dist_config="classifier")
         self.z1_encoder = _make_func(in_dims=self.num_labels + self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
@@ -200,11 +226,15 @@ class SCANVI(nn.Module):
                 z2 = torch.cat([z2, x[..., -1].view(-1,1)], dim=-1)
 
 
-            
-            gate_logits, mu = self.x_decoder(z2)
-            nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
-            x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta,
-                                                       logits=nb_logits, validate_args=False)
+            match self.reconstruction:
+                case "ZINB":
+                    gate_logits, mu = self.x_decoder(z2)
+                    nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                    x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+
+                case "Normal":
+                    x_loc, x_scale = self.x_decoder(z2)
+                    x_dist = dist.Normal(x_loc, x_scale)
             
             
             pyro.sample("x", x_dist.to_event(1), obs=x)
@@ -264,10 +294,15 @@ class SCANVI(nn.Module):
             z2 = torch.cat([z2, x[..., -1].view(-1,1)], dim=-1)
 
 
-        gate_logits, mu = self.x_decoder(z2)
-        nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
-        x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta,
-                                                       logits=nb_logits, validate_args=False)
+        match self.reconstruction:
+            case "ZINB":
+                gate_logits, mu = self.x_decoder(z2)
+                nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+
+            case "Normal":
+                x_loc, x_scale = self.x_decoder(z2)
+                x_dist = dist.Normal(x_loc, x_scale)
             
         #Observe the datapoint x using the observation distribution x_dist
         x_rec = pyro.sample("x", x_dist.to_event(1))
@@ -319,7 +354,7 @@ class CSSCVI(nn.Module):
 
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, w_loc=[0,3], w_scale=[0.1,1], w_dim=10, len_attrs=[3,2],
-                 latent_dim=10, num_layers=1, hidden_dim=128, alphas=[0.1, 1], scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal"] = "Normal"):
+                 latent_dim=10, num_layers=1, hidden_dim=128, alphas=[0.1, 1], scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD"] = "ZINB"):
 
         
         # Init params & hyperparams
@@ -341,14 +376,23 @@ class CSSCVI(nn.Module):
 
         
         # Setup NN functions
-        self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+       
 
         match self.reconstruction:
+            
             case "ZINB":
+                self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+                
                 self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
 
             case "Normal":
+                self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+                
                 self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="normal")
+
+            case "ZINB_LD" | "Normal_LD":
+                self.x_decoder = nn.Linear(self.latent_dim + (self.w_dim * self.num_labels) + int(self.batch_correction), self.num_genes*2, bias=False)
+        
         
         self.rho_l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
 
@@ -395,28 +439,54 @@ class CSSCVI(nn.Module):
             w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
 
             zw = torch.cat([z, w], dim=-1)
-            rho_loc, rho_scale = self.rho_decoder(zw)
-            rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
-            
+
             l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
             l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
-            
-            if self.batch_correction:
-                rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
 
-
+            # Part to modify if changing the decoder
             match self.reconstruction:
                 case "ZINB":
+                    rho_loc, rho_scale = self.rho_decoder(zw)
+                    rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+
+            
+                    if self.batch_correction:
+                        rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
+                    
                     gate_logits, mu = self.x_decoder(rho)
                     nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
                     x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
 
                 case "Normal":
+                    rho_loc, rho_scale = self.rho_decoder(zw)
+                    rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+    
+            
+                    if self.batch_correction:
+                        rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
+                    
                     x_loc, x_scale = self.x_decoder(rho)
                     x_dist = dist.Normal(x_loc, x_scale)
-            
-            
+
+                case "ZINB_LD":
+                    gate_logits, mu = _split_in_half(self.x_decoder(zw))
+                    mu = softmax(mu, dim=-1)
+                    nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                    x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+
+
+                case "Normal_LD":
+                    _zw = zw.reshape(-1, zw.size(-1))
+                    out = self.x_decoder(_zw)
+                    out = out.reshape(zw.shape[:-1] + out.shape[-1:])
+                
+                    x_loc, x_scale = _split_in_half(out)
+                    x_scale = softplus(x_scale)
+                    x_dist = dist.Normal(x_loc, x_scale)
+
+                    
+
             pyro.sample("x", x_dist.to_event(1), obs=x)
 
     
@@ -425,11 +495,19 @@ class CSSCVI(nn.Module):
         pyro.module("csscvi", self)
         
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
+            
             # Variational for rho & l
             rho_loc, rho_scale, l_loc, l_scale = self.rho_l_encoder(x)
             
+            
             pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
-            rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+
+            if self.reconstruction in ["ZINB_LD", "Normal_LD"]:
+                rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1), infer={'is_auxiliary': True})
+            
+            else:
+                rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+
 
             # Variational for w & z
             rho_y = _broadcast_inputs([rho, y])
@@ -460,8 +538,7 @@ class CSSCVI(nn.Module):
                 
                                         
             pyro.factor("classification_loss", classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
-
-
+            
     
 
     # Adverserial
@@ -546,22 +623,46 @@ class CSSCVI(nn.Module):
         theta = dict(pyro.get_param_store())["inverse_dispersion"].detach()
 
         zw = torch.cat([z, w], dim=-1)
-        rho_loc, rho_scale = self.rho_decoder(zw)
-        rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
-
-        if self.batch_correction:
-            rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
 
         match self.reconstruction:
-        
-            case "ZINB":
-                gate_logits, mu = self.x_decoder(rho)
-                nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
-                x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+                case "ZINB":
+                    rho_loc, rho_scale = self.rho_decoder(zw)
+                    rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
 
-            case "Normal":
-                x_loc, x_scale = self.x_decoder(rho)
-                x_dist = dist.Normal(x_loc, x_scale)
+            
+                    if self.batch_correction:
+                        rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
+                    
+                    gate_logits, mu = self.x_decoder(rho)
+                    nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                    x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+
+                case "Normal":
+                    rho_loc, rho_scale = self.rho_decoder(zw)
+                    rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+    
+            
+                    if self.batch_correction:
+                        rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
+                    
+                    x_loc, x_scale = self.x_decoder(rho)
+                    x_dist = dist.Normal(x_loc, x_scale)
+
+                case "ZINB_LD":
+                    gate_logits, mu = _split_in_half(self.x_decoder(zw))
+                    mu = softmax(mu, dim=-1)
+                    nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                    x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
+
+
+                case "Normal_LD":
+                    _zw = zw.reshape(-1, zw.size(-1))
+                    out = self.x_decoder(_zw)
+                    out = out.reshape(zw.shape[:-1] + out.shape[-1:])
+                
+                    x_loc, x_scale = _split_in_half(out)
+                    x_scale = softplus(x_scale)
+                    x_dist = dist.Normal(x_loc, x_scale)
             
         #Observe the datapoint x using the observation distribution x_dist
         x_rec = pyro.sample("x", x_dist.to_event(1))
