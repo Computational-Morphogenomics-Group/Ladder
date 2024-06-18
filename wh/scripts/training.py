@@ -64,7 +64,7 @@ def train_lin_reg(model, train_loader, test_loader, learning_rate=1e-3, epochs=1
 
                   
 # Helper to train Pyro models
-def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 4e-4, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}):
+def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 4e-4, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}, early_stop=False):
     
     model = model.double().to(device)
     scheduler = MultiStepLR(optim_args.copy())
@@ -109,13 +109,20 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
         loss_track_train.append(np.mean(losses))
         loss_track_test.append(np.mean(losses_test))
 
+        if len(loss_track_test) > 1 and early_stop and loss_track_test[-1] > loss_track_test[-2]:
+            print("Test loss higher than previous, stopping early...")
+            break
+
+        elif early_stop:
+            model.save("early_stop_params_best")
+
     return model, loss_track_train, loss_track_test
 
 
 
 
 # Helper to train models that involve disjoint parameters during training
-def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, style : Literal["joint", "disjoint"] = "disjoint", warmup=0):
+def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, style : Literal["joint", "disjoint"] = "disjoint", warmup=0, early_stop=False):
 
     model = model.double().to(device)
     loss_track_test, loss_track_train = [], []
@@ -228,10 +235,16 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
 
         if verbose:
             print(f"Epoch : {epoch} || Train Loss: {np.mean(losses).round(5)} // {np.mean(prob_losses).round(5)} || Test Loss: {np.mean(losses_test).round(5)} // {np.mean(prob_losses_test).round(5)} || Warmup : {bool(epoch+1 <= warmup)}")
-
+        
         loss_track_train.append(np.mean(losses))
         loss_track_test.append(np.mean(losses_test))
 
-    
+        if len(loss_track_test) > 1 and early_stop and loss_track_test[-1] > loss_track_test[-2]:
+            print("Test loss higher than previous, stopping early...")
+            break
+
+        elif early_stop:
+            model.save("early_stop_params_best")
+
     
     return model, loss_track_train, loss_track_test, params_nonc_names, params_c_names
