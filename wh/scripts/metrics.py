@@ -112,15 +112,17 @@ def self_profile_reproduction(point_dataset, target=None, n_trials=3000, subset_
 def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_trials=3000, lib_size=1e4, verbose=False, use_cuda=True):
     if source is not None and target is not None:
         source_set, target_set = _get_subset(point_dataset, source), _get_subset(point_dataset, target)
+        _y_target = target_set[0][1].repeat(len(source_set),1)
 
     else:
         source_set, target_set = point_dataset, point_dataset
+        _y_target = point_dataset[:][1]
     
     
     if use_cuda:
-        preds = torch.stack([model(source_set[:][0].cuda(), y_source=source_set[:][1].cuda(), y_target=target_set[0][1].repeat(len(source_set),1).cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+        preds = torch.stack([model(source_set[:][0].cuda(), y_source=source_set[:][1].cuda(), y_target=_y_target.cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
     else:
-        preds = torch.stack([model(source_set[:][0].cpu(), y_source=source_set[:][1].cpu(), y_target=target_set[0][1].repeat(len(source_set),1).cpu())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+        preds = torch.stack([model(source_set[:][0].cpu(), y_source=source_set[:][1].cpu(), y_target=_y_target.cpu())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
     
     
     
