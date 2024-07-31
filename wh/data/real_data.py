@@ -274,7 +274,7 @@ def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=256, ke
 
 
 # Helper to train linear regression with optional matchings
-def make_lin_reg_data(counts, metadata, split_factor, labels, group_names, batch_size=128, split_pcts=[0.8, 0.2], matchings : Literal["random", "ot"] = "random"):
+def make_lin_reg_data(counts, metadata, split_factor, labels, source_groups, target_groups, batch_size=128, split_pcts=[0.8, 0.2], matchings : Literal["random", "ot"] = "random"):
 
     # Densify
     counts = _process_array(counts) 
@@ -286,7 +286,8 @@ def make_lin_reg_data(counts, metadata, split_factor, labels, group_names, batch
         lab_locs = np.where(metadata.index.isin(metadata[metadata[labels] == lab].index))
         sub_metadata, sub_counts = metadata.iloc[lab_locs], counts[lab_locs]
 
-        locs_source, locs_target = np.where(sub_metadata.index.isin(sub_metadata.groupby("factors", observed=True).get_group(group_names[0]).index)), np.where(sub_metadata.index.isin(sub_metadata.groupby("factors", observed=True).get_group(group_names[1]).index))    
+        locs_source, locs_target = np.where(sub_metadata.index.isin([x for xs in [list(sub_metadata.groupby("factors", observed=True).get_group(group_name).index) for group_name in source_groups] for x in xs])), np.where(sub_metadata.index.isin([x for xs in [list(sub_metadata.groupby("factors", observed=True).get_group(group_name).index) for group_name in target_groups] for x in xs]))
+  
         x,y = sub_counts[locs_source], sub_counts[locs_target]
     
         
