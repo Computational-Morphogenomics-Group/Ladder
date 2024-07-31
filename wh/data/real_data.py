@@ -248,39 +248,23 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
 
 
 # Helper to go from dataset to train-test split loaders
-def distrib_dataset(dataset, levels, split_type : Literal["o_o", "o_u", "u_u", "u"] = "o_o", split_pcts = [0.8, 0.2], batch_size=256, source=(1,0,0,0,1), target=(0,1,0,0,1)):
+def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=256, keep_train=None, keep_test=None):
 
     np.random.seed(42)
     torch.manual_seed(42)
 
     inv_levels = {v: k for k, v in levels.items()}
 
-    match split_type:
-
-        case "o_o":
+    if keep_train is None or keep_test is None:
             train_set, test_set = utils.random_split(dataset, split_pcts)
             train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
 
-        case "o_u" | "u_u" | "u":
-            source_set, target_set = _get_subset(dataset, torch.tensor(source)), _get_subset(dataset, torch.tensor(target))
-
-            print(f"Source : {inv_levels[source]} // Target : {inv_levels[target]}")
-
-            inv_levels.pop(target) # Only pop the target
-            print("Popped target")
-
-            if split_type == "u_u":
-                inv_levels.pop(source) # Pop source as well 
-                print("Popped source")
-
-
+    else:
+            print(f"Train Levels: {keep_train}  // Test Levels: {keep_test}")
+            train_set = ConcatTensorDataset([_get_subset(dataset, torch.tensor(key)) for key in inv_levels.keys() if inv_levels[key] in keep_train])
+            test_set = ConcatTensorDataset([_get_subset(dataset, torch.tensor(key)) for key in inv_levels.keys() if inv_levels[key] in keep_test])
             
-            rest = ConcatTensorDataset([_get_subset(dataset, torch.tensor(key)) for key in inv_levels.keys()])
-
-            if split_type != "u":
-                target_set = ConcatTensorDataset([source_set, target_set])
             
-            train_set, test_set = rest, target_set
             train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
 
         
