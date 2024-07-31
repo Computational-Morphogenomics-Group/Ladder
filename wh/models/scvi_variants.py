@@ -141,7 +141,7 @@ class SCVI(nn.Module):
         
             case "ZINB":
                 gate_logits, mu = self.x_decoder(z_enc)
-                nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                nb_logits = (l_enc * mu + self.epsilon).log() - (theta.to(mu.get_device()) + self.epsilon).log()
                 x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
 
             case "Normal":
@@ -152,7 +152,7 @@ class SCVI(nn.Module):
             case "ZINB_LD":
                     gate_logits, mu = _split_in_half(self.x_decoder(z_enc))
                     mu = softmax(mu, dim=-1)
-                    nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                    nb_logits = (l_enc * mu + self.epsilon).log() - (theta.to(mu.get_device()) + self.epsilon).log()
                     x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
 
             case "Normal_LD":
@@ -377,7 +377,7 @@ class SCANVI(nn.Module):
                     z2 = torch.cat([z2, x[..., -1].view(-1,1)], dim=-1)
                     
                 gate_logits, mu = self.x_decoder(z2)
-                nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                nb_logits = (l_enc * mu + self.epsilon).log() - (theta.to(mu.get_device()) + self.epsilon).log()
                 x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
 
             case "Normal":
@@ -395,7 +395,7 @@ class SCANVI(nn.Module):
             case "ZINB_LD":
                 gate_logits, mu = _split_in_half(self.x_decoder(z1_y))
                 mu = softmax(mu, dim=-1)
-                nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                nb_logits = (l_enc * mu + self.epsilon).log() - (theta.to(mu.get_device()) + self.epsilon).log()
                 x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
 
 
@@ -738,9 +738,10 @@ class CSSCVI(nn.Module):
             
                     if self.batch_correction:
                         rho = torch.cat([rho, x[..., -1].view(-1,1)], dim=-1)
-                    
+
                     gate_logits, mu = self.x_decoder(rho)
-                    nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+
+                    nb_logits = (l_enc * mu + self.epsilon).log() - (theta.to(mu.get_device()) + self.epsilon).log()
                     x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
 
                 case "Normal":
@@ -757,7 +758,7 @@ class CSSCVI(nn.Module):
                 case "ZINB_LD":
                     gate_logits, mu = _split_in_half(self.x_decoder(zw))
                     mu = softmax(mu, dim=-1)
-                    nb_logits = (l_enc * mu + self.epsilon).log() - (theta + self.epsilon).log()
+                    nb_logits = (l_enc * mu + self.epsilon).log() - (theta.to(mu.get_device()) + self.epsilon).log()
                     x_dist = dist.ZeroInflatedNegativeBinomial(gate_logits=gate_logits, total_count=theta, logits=nb_logits, validate_args=False)
 
 
