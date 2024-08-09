@@ -460,7 +460,7 @@ class CSSCVI(nn.Module):
 
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, w_loc=[0,3], w_scale=[0.1,1], w_dim=10, len_attrs=[3,2],
-                 latent_dim=10, num_layers=1, hidden_dim=128, alphas=[0.1, 1], scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
+                 latent_dim=10, num_layers=1, hidden_dim=128, alphas=[0.1, 1], scale_factor=1.0, batch_correction=False, ld_sparsity=0, ld_normalize=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
 
         
         # Init params & hyperparams
@@ -477,6 +477,8 @@ class CSSCVI(nn.Module):
         self.len_attrs=len_attrs # List keeping number of possibilities for each attribute
         self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction   # Distribution for the reconstruction
+        self.sparsity = ld_sparsity  # Sparsity, use only with ZINB_LD!
+        self.normalize = ld_normalize # Normalization, adds bias to LD
         
         super(CSSCVI, self).__init__()
 
@@ -497,7 +499,7 @@ class CSSCVI(nn.Module):
                 self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="normal")
 
             case "ZINB_LD" | "Normal_LD":
-                self.x_decoder = nn.Linear(self.latent_dim + (self.w_dim * self.num_labels), self.num_genes*2, bias=False)
+                self.x_decoder = nn.Linear(self.latent_dim + (self.w_dim * self.num_labels), self.num_genes*2, bias=self.normalize)
         
         
         self.rho_l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
@@ -641,11 +643,12 @@ class CSSCVI(nn.Module):
                 classification_loss_z += self.alphas[i] * cur_dist.log_prob(y[..., attr_track : next_track])
 
                 attr_track = next_track
-                
+            
                                         
             pyro.factor("classification_loss", classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
-            
-    
+
+            if self.sparsity:
+                pyro.factor("l1_loss", list(self.x_decoder.parameters())[0].T[self.latent_dim:].clone().sum().abs(), has_rsample=False) # sparsity     
 
     # Adverserial
     def adverserial(self, x, y):
