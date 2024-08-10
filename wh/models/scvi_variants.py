@@ -477,7 +477,7 @@ class CSSCVI(nn.Module):
         self.len_attrs=len_attrs # List keeping number of possibilities for each attribute
         self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction   # Distribution for the reconstruction
-        self.sparsity = ld_sparsity  # Sparsity, use only with ZINB_LD!
+        self.sparsity = ld_sparsity  # Sparsity, used only with LD
         self.normalize = ld_normalize # Normalization, adds bias to LD
         
         super(CSSCVI, self).__init__()
@@ -647,8 +647,11 @@ class CSSCVI(nn.Module):
                                         
             pyro.factor("classification_loss", classification_loss_z, has_rsample=False) # Want this maximized so positive sign in guide
 
-            if self.sparsity:
-                pyro.factor("l1_loss", list(self.x_decoder.parameters())[0].T[self.latent_dim:].clone().sum().abs(), has_rsample=False) # sparsity     
+            if (self.reconstruction in ["ZINB_LD", "Normal_LD"]) and self.sparsity:
+                params = list(self.x_decoder.parameters())[0].T[self.latent_dim:].clone() 
+                _, x_loc_params = params.reshape(params.shape[:-1] + (2, -1)).unbind(-2)
+                pyro.factor("l1_loss", x_loc_params.sum().abs(), has_rsample=False) # sparsity
+                print(x_loc_params.sum().abs())
 
     # Adverserial
     def adverserial(self, x, y):
