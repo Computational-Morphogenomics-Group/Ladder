@@ -651,7 +651,6 @@ class CSSCVI(nn.Module):
                 params = list(self.x_decoder.parameters())[0].T[self.latent_dim:].clone() 
                 _, x_loc_params = params.reshape(params.shape[:-1] + (2, -1)).unbind(-2)
                 pyro.factor("l1_loss", x_loc_params.sum().abs(), has_rsample=False) # sparsity
-                print(x_loc_params.sum().abs())
 
     # Adverserial
     def adverserial(self, x, y):
