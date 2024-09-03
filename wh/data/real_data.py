@@ -11,6 +11,8 @@ from typing import Iterable, Literal
 import anndata as ad
 from scipy.sparse import issparse, csr_matrix
 import ot
+from sklearn.preprocessing import OrdinalEncoder
+
 
 
 
@@ -138,17 +140,36 @@ class ConcatTensorDataset(utils.ConcatDataset):
 
 
 ############################ Internal Calls ############################
+# Batch processing for distrib_dataset
+def _process_batch_dd(dataset):
+    l_mean, l_scale = [], []
+        
+    for batch in range(int(dataset[:][0][..., -1].view(-1,1).max().item())+1):
+        idxs = np.nonzero(dataset[:][0][..., -1] == batch).flatten()
+        subset = dataset[list(idxs)][0]
+        l_mean.append(subset.sum(-1).log().mean()) ; l_scale.append(subset.sum(-1).log().var())
+
+    return l_mean, l_scale
+
+# Batch processing for construct_labels
+def _process_batch_cb(metadata, batch_key):
+    encoder = OrdinalEncoder()
+    labels = encoder.fit_transform(metadata[batch_key].to_numpy().reshape(-1, 1))
+    return encoder, labels
+
+# Get subset indices from cloud
 def _get_idxs(point_dataset, target):
     return [idx for idx in range(len(point_dataset)) if (point_dataset[idx][1] == target).all()]
 
 
+# Get the actual subset object from cloud
 def _get_subset(point_dataset, target):
     tup = point_dataset[_get_idxs(point_dataset, target)]
     return utils.TensorDataset(*tup)
 
 
+# Helper to convert metadata from DataFrame to torch object   
 def _concat_cat_df(metadata):
-
     stack_list = []
 
     for colname in metadata:
@@ -161,11 +182,13 @@ def _concat_cat_df(metadata):
     return torch.from_numpy(np.hstack(stack_list)).double()
 
 
+# Construct combinations of attributes from condition classes
 def _factors_to_col(anndat : ad.AnnData, factors : list):
  anndat.obs["factors"] = anndat.obs.apply(lambda x : "_".join([x[factor] for factor in factors]), axis=1).astype('category')
  return anndat
 
 
+# Check to make sure array is dense
 def _process_array(arr):
     if isinstance(arr, np.ndarray):  # Check if array is dense
         result = arr
@@ -188,12 +211,11 @@ def _process_array(arr):
 
 # Helper to get dataset for CVAE models
 
-## TODO: Add batch dim by name
-
+    
 def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", batch_key = None):
 
     # Small checks for batch and sparsity 
-    assert "batch" not in factors, "Batch should not be specified as factor"
+    assert batch_key not in factors, "Batch should not be specified as factor"
 
     counts = _process_array(counts) 
 
@@ -222,12 +244,6 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
 
             levels_cat = {" - ".join(prod) : tuple(chain(*[levels_dict_flat[prod[i]] for i in range(len(prod))])) for prod in product(*[list(level.keys()) for level in levels_dict])}
 
-            if batch_key is not None:
-                x = torch.cat([torch.from_numpy(counts), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
-            
-            else:
-                x = torch.from_numpy(counts).double()
-
                 
             y = torch.cat(factors_list, dim = -1)
 
@@ -236,52 +252,52 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             cols = list(pd.get_dummies(metadata.apply(lambda x : " - ".join(x[factors]), axis=1)).columns)
             levels_cat = { cols[i] : tuple([0]*i + [1] + [0]*(len(cols)-1-i)) for i in range(len(cols))}
 
-            if batch_key is not None:
-                x = torch.cat([torch.from_numpy(counts), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
-            
-            else:
-                x = torch.from_numpy(counts).double()
-
             y = factors_list
             
 
-    
-    return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat, AnndataConverter(metadata)
+
+    # Decide if batch will be appended to input (ie. if working on data that needs batch correction)
+    if batch_key is not None:
+        encoder, labels = _process_batch_cb(metadata, batch_key)
+        x = torch.cat([torch.from_numpy(counts), torch.from_numpy(labels.astype(int)).double().view(-1,1)], dim=-1)
+        return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat, AnndataConverter(metadata), {encoder.categories_[0][t] : t for t in range(encoder.categories_[0].shape[0])}
+
+            
+    else:
+        x = torch.from_numpy(counts).double()
+        return utils.TensorDataset(x,y, _concat_cat_df(metadata)), levels_cat, AnndataConverter(metadata)
 
 
 
 # Helper to go from dataset to train-test split loaders 
-def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=256, keep_train=None, keep_test=None, batch_key=None):
+def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=128, keep_train=None, keep_test=None, batch_key=None, **kwargs):
 
-    np.random.seed(42)
-    torch.manual_seed(42)
+    inv_levels = {v: k for k, v in levels.items()} # Inverse levels required
 
-    inv_levels = {v: k for k, v in levels.items()}
-
+    # General training to see how the model fits. USed to evaluate reconstruction or to fit interpretable model with linear decoder.
     if keep_train is None or keep_test is None:
             train_set, test_set = utils.random_split(dataset, split_pcts)
-            train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
+            train_loader, test_loader = utils.DataLoader(train_set, batch_size=batch_size, shuffle=True, **kwargs), utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs)
 
-            if batch_key is not None:
-                pass 
 
-            else:
-                l_mean, l_scale = train_set[:][0].sum(-1).log().mean(), train_set[:][0].sum(-1).log().var()
-            
+    # Used for transfer of conditions. Train test split is completely manually defined and based on attributes
     else:
             print(f"Train Levels: {keep_train}  // Test Levels: {keep_test}")
             train_set = ConcatTensorDataset([_get_subset(dataset, torch.tensor(key)) for key in inv_levels.keys() if inv_levels[key] in keep_train])
             test_set = ConcatTensorDataset([_get_subset(dataset, torch.tensor(key)) for key in inv_levels.keys() if inv_levels[key] in keep_test])
             
             
-            train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
+            train_loader, test_loader = utils.DataLoader(train_set, batch_size=batch_size, shuffle=True, **kwargs), utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs)
 
-            if batch_key is not None:
-                pass
 
-            else:
-                l_mean, l_scale = train_set[:][0].sum(-1).log().mean(), train_set[:][0].sum(-1).log().var()
-            
+    # If batch is appended to input, generate size priors per batch
+    if batch_key is not None:
+       l_mean, l_scale = _process_batch_dd(train_set)
+
+    # If not, need a single size prior
+    else:
+        l_mean, l_scale = train_set[:][0].sum(-1).log().mean(), train_set[:][0].sum(-1).log().var()
+        
         
     return train_set, test_set, train_loader, test_loader, l_mean, l_scale
 
