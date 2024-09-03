@@ -147,9 +147,9 @@ def _process_batch_dd(dataset):
     for batch in range(int(dataset[:][0][..., -1].view(-1,1).max().item())+1):
         idxs = np.nonzero(dataset[:][0][..., -1] == batch).flatten()
         subset = dataset[list(idxs)][0]
-        l_mean.append(subset.sum(-1).log().mean()) ; l_scale.append(subset.sum(-1).log().var())
+        l_mean.append(subset.sum(-1).log().mean().item()) ; l_scale.append(subset.sum(-1).log().var().item())
 
-    return l_mean, l_scale
+    return np.array(l_mean), np.array(l_scale)
 
 # Batch processing for construct_labels
 def _process_batch_cb(metadata, batch_key):
