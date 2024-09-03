@@ -79,13 +79,17 @@ def _get_sliced_wasserstein_n_to_1(samples, orig, projections=1e3, verbose=False
 ####################################
 
 
-def get_normalized_profile(point_dataset, target=None, lib_size=1e4):
+def get_normalized_profile(point_dataset, target=None, lib_size=1e4, batched=False):
     
     if target is None:
         point_set = point_dataset[:][0]
     
     else:
         point_set = _get_subset(point_dataset, target)[:][0]
+
+
+    if batched:
+        point_set = point_set[..., :-1]
         
     
     return _norm_lib_size(point_set, lib_size).T.mean(-1)
@@ -110,6 +114,8 @@ def self_profile_reproduction(point_dataset, target=None, n_trials=3000, subset_
 
 
 def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_trials=3000, lib_size=1e4, verbose=False, use_cuda=True):
+    
+    
     if source is not None and target is not None:
         source_set, target_set = _get_subset(point_dataset, source), _get_subset(point_dataset, target)
         _y_target = target_set[0][1].repeat(len(source_set),1)
@@ -118,9 +124,9 @@ def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_t
         source_set, target_set = point_dataset, point_dataset
         _y_target = point_dataset[:][1]
     
-    
     if use_cuda:
         preds = torch.stack([model(source_set[:][0].cuda(), y_source=source_set[:][1].cuda(), y_target=_y_target.cuda())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
+    
     else:
         preds = torch.stack([model(source_set[:][0].cpu(), y_source=source_set[:][1].cpu(), y_target=_y_target.cpu())['x'][0].cpu() for i in _get_iterator(n_trials, verbose=verbose)])
     
@@ -132,7 +138,7 @@ def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_t
 
 
 
-def get_reproduction_error(point_dataset, model, source=None, target=None, metric : Literal["chamfer", "rmse", "swd", "corr"] = "corr", n_trials=None, lib_size=1e4,**kwargs):
+def get_reproduction_error(point_dataset, model, source=None, target=None, metric : Literal["chamfer", "rmse", "swd", "corr"] = "corr", n_trials=None, lib_size=1e4, batched=False, **kwargs):
 
     if n_trials is None:
         print("Defaulting to coupon collector for n_trials...")
@@ -151,13 +157,12 @@ def get_reproduction_error(point_dataset, model, source=None, target=None, metri
         case "swd":
             _metric_func = _get_sliced_wasserstein_n_to_1
         
-    
     pred_profiles, preds = gen_profile_reproduction(point_dataset, model, source, target, n_trials=n_trials, lib_size=lib_size, **kwargs)
 
     
     match metric:
         case "rmse" | "corr": # Add profile metrics here 
-            mean_profile = get_normalized_profile(point_dataset, target=target)
+            mean_profile = get_normalized_profile(point_dataset, target=target, batched=batched)
             preds_mean_error = _metric_func(pred_profiles, mean_profile, **kwargs)
         
         case "chamfer" | "swd": # Add cloud metrics here
@@ -168,6 +173,9 @@ def get_reproduction_error(point_dataset, model, source=None, target=None, metri
             else:
                 orig = _get_subset(point_dataset, target)[:][0]
 
+
+            if batched:
+                orig = orig[..., :-1]
                 
             preds_mean_error = _metric_func(preds, orig, **kwargs)
             

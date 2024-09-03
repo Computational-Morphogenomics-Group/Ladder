@@ -74,13 +74,13 @@ class SCVI(nn.Module):
 
             # If batch correction, pick corresponding loc scale
             if self.batch_correction:
-                l_loc, l_scale = self.l_loc[x[..., -1].type(torch.int)], self.l_scale
+                l_loc, l_scale = torch.tensor(self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]).reshape(-1,1).to(x.device), torch.tensor(self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]).reshape(-1,1).to(x.device)
 
             # Single size factor
             else :
                 l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
 
-            
+
             l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
 
@@ -131,6 +131,7 @@ class SCVI(nn.Module):
 
             # If batch corrected, this is expression appended with batch
             z_loc, z_scale, l_loc, l_scale = self.zl_encoder(x)
+
             
             pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
             pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
