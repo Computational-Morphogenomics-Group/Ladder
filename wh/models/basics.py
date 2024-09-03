@@ -171,6 +171,8 @@ class LinRegressor(nn.Module):
 def _split_in_half(t):
     """
     Splits a tensor in half along the final dimension
+
+    Source: https://pyro.ai/examples/scanvi.html
     """
     return t.reshape(t.shape[:-1] + (2, -1)).unbind(-2)
 
@@ -178,6 +180,8 @@ def _split_in_half(t):
 def _broadcast_inputs(input_args):
     """
     Helper for broadcasting inputs to neural net
+
+    Source: https://pyro.ai/examples/scanvi.html
     """
     shape = broadcast_shape(*[s.shape[:-1] for s in input_args]) + (-1,)
     input_args = [s.expand(shape) for s in input_args]
@@ -187,6 +191,8 @@ def _broadcast_inputs(input_args):
 def _make_fc(dims):
     """
     Helper to make FC layers in succession
+
+    Source: https://pyro.ai/examples/scanvi.html
     """
     layers = []
     for in_dim, out_dim in zip(dims, dims[1:]):

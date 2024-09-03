@@ -186,6 +186,25 @@ class SCVI(nn.Module):
         x_rec = pyro.sample("x", x_dist.to_event(1))
         return x_rec
 
+    
+    # Get linear weights if LD
+    def get_weights(self):
+        assert self.reconstruction.endswith('LD')
+        match self.reconstruction:
+            case 'ZINB_LD':
+                if self.batch_correction:
+                    logits, mu = _split_in_half(list(self.x_decoder.parameters())[0].T[:-1].detach().cpu())
+                else:
+                    logits, mu = _split_in_half(list(self.x_decoder.parameters())[0].T.detach().cpu())
+                return mu, logits
+
+            case 'Normal_LD':
+                if self.batch_correction:
+                    loc, scale = _split_in_half(list(self.x_decoder.parameters())[0].T[:-1].detach().cpu())
+                else:
+                    loc, scale = _split_in_half(list(self.x_decoder.parameters())[0].T.detach().cpu())
+                return loc, scale
+    
     # Save self
     def save(self, path="scvi_params"):
         torch.save(self.state_dict(), path + "_torch.pth")
@@ -251,11 +270,11 @@ class SCANVI(nn.Module):
                 self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="normal")
 
             case "ZINB_LD" | "Normal_LD":
-                self.x_decoder = nn.Linear(self.latent_dim + self.num_labels, self.num_genes*2, bias=False)
+                self.x_decoder = nn.Linear(self.latent_dim + self.num_labels + int(self.batch_correction), self.num_genes*2, bias=False)
 
                 
                 
-        self.z2l_encoder = _make_func(in_dims=self.num_genes, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
+        self.z2l_encoder = _make_func(in_dims=self.num_genes + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
         
         self.classifier = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_labels, last_config="default", dist_config="classifier")
         
@@ -278,9 +297,16 @@ class SCANVI(nn.Module):
 
             z1_y = torch.cat([z1, y], dim=-1)
             
+
+            # If batch correction, pick corresponding loc scale
+            if self.batch_correction:
+                l_loc, l_scale = torch.tensor(self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]).reshape(-1,1).to(x.device), torch.tensor(self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]).reshape(-1,1).to(x.device)
+
+            # Single size factor
+            else :
+                l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
+                
             
-            
-            l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(1)
             l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
             match self.reconstruction:
@@ -288,7 +314,7 @@ class SCANVI(nn.Module):
                     z2_loc, z2_scale = self.z2_decoder(z1_y)
                     z2 = pyro.sample("z2", dist.Normal(z2_loc, z2_scale).to_event(1))
                     
-                    
+                    # Append batch here if corrected
                     if self.batch_correction:
                         z2 = torch.cat([z2, x[..., -1].view(-1,1)], dim=-1)
                     
@@ -300,7 +326,7 @@ class SCANVI(nn.Module):
                     z2_loc, z2_scale = self.z2_decoder(z1_y)
                     z2 = pyro.sample("z2", dist.Normal(z2_loc, z2_scale).to_event(1))
                     
-                    
+                    # Append batch here if corrected
                     if self.batch_correction:
                         z2 = torch.cat([z2, x[..., -1].view(-1,1)], dim=-1)
 
@@ -309,6 +335,10 @@ class SCANVI(nn.Module):
 
                 
                 case "ZINB_LD":
+                    # Append the batch
+                    if self.batch_correction:
+                        z1_y = torch.cat([z1_y, x[..., -1].view(-1,1)], dim=-1)
+                    
                     gate_logits, mu = _split_in_half(self.x_decoder(z1_y))
                     mu = softmax(mu, dim=-1)
                     nb_logits = (l * mu + self.epsilon).log() - (theta + self.epsilon).log()
@@ -316,6 +346,10 @@ class SCANVI(nn.Module):
 
 
                 case "Normal_LD":
+                    # Append the batch
+                    if self.batch_correction:
+                        z1_y = torch.cat([z1_y, x[..., -1].view(-1,1)], dim=-1)
+                    
                     _z1_y = z1_y.reshape(-1, z1_y.size(-1))
                     out = self.x_decoder(_z1_y)
                     out = out.reshape(z1_y.shape[:-1] + out.shape[-1:])
@@ -326,7 +360,12 @@ class SCANVI(nn.Module):
                     
             
             
-            pyro.sample("x", x_dist.to_event(1), obs=x)
+            # If batch corrected, we expect last index to be batch
+            if self.batch_correction:
+                pyro.sample("x", x_dist.to_event(1), obs=x[..., :-1])
+            else:
+                pyro.sample("x", x_dist.to_event(1), obs=x)
+
 
     
     # Guide
@@ -410,6 +449,10 @@ class SCANVI(nn.Module):
 
                 
             case "ZINB_LD":
+                # Append the batch
+                if self.batch_correction:
+                    z1_y = torch.cat([z1_y, x[..., -1].view(-1,1)], dim=-1)
+                    
                 gate_logits, mu = _split_in_half(self.x_decoder(z1_y))
                 mu = softmax(mu, dim=-1)
                 nb_logits = (l_enc * mu + self.epsilon).log() - (theta.to(mu.device) + self.epsilon).log()
@@ -417,6 +460,10 @@ class SCANVI(nn.Module):
 
 
             case "Normal_LD":
+                # Append the batch
+                if self.batch_correction:
+                    z1_y = torch.cat([z1_y, x[..., -1].view(-1,1)], dim=-1)
+                        
                 _z1_y = z1_y.reshape(-1, z1_y.size(-1))
                 out = self.x_decoder(_z1_y)
                 out = out.reshape(z1_y.shape[:-1] + out.shape[-1:])
@@ -432,6 +479,24 @@ class SCANVI(nn.Module):
 
         return x_rec
 
+
+    def get_weights(self):
+        assert self.reconstruction.endswith('LD')
+        match self.reconstruction:
+            case 'ZINB_LD':
+                if self.batch_correction:
+                    logits, mu = _split_in_half(list(self.x_decoder.parameters())[0].T[:-1].detach().cpu())
+                else:
+                    logits, mu = _split_in_half(list(self.x_decoder.parameters())[0].T.detach().cpu())
+                return mu, logits
+
+            case 'Normal_LD':
+                if self.batch_correction:
+                    loc, scale = _split_in_half(list(self.x_decoder.parameters())[0].T[:-1].detach().cpu())
+                else:
+                    loc, scale = _split_in_half(list(self.x_decoder.parameters())[0].T.detach().cpu())
+                return loc, scale
+    
 
     # Save self
     def save(self, path="scanvi_params"):
