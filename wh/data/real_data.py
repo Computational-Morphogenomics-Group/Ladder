@@ -106,10 +106,12 @@ class AnndataConverter(MetadataConverter):
     
 
 
-
-
 class ConcatTensorDataset(utils.ConcatDataset):
-    r"""ConcatDataset of TensorDatasets which supports getting slices and index lists/arrays.
+    r"""
+
+    Courtesy of https://github.com/johann-petrak/pytorch/commit/eb70e81e31508c383bdc17059ddb532a6b40468c
+    
+    ConcatDataset of TensorDatasets which supports getting slices and index lists/arrays.
     This dataset allows the use of slices, e.g. ds[2:4] and of arrays or lists of multiple indices 
     if all concatenated datasets are either TensorDatasets or Subset or other ConcatTensorDataset instances
     which eventually contain only TensorDataset instances. If no slicing is needed,
@@ -117,6 +119,8 @@ class ConcatTensorDataset(utils.ConcatDataset):
     (not just TensorDataset) datasets.
     Args:
         datasets (sequence): List of datasets to be concatenated
+
+        
     """
     def __init__(self, datasets: Iterable[utils.Dataset]) -> None:
         super(ConcatTensorDataset, self).__init__(datasets)
@@ -179,14 +183,14 @@ def _process_array(arr):
 
 
 
-############################ Funcitons ############################
+############################ Functions ############################
 
 
 # Helper to get dataset for CVAE models
 
 ## TODO: Add batch dim by name
 
-def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", inc_batch = False):
+def construct_labels(counts, metadata, factors, style : Literal["concat", "one-hot"] = "concat", batch_key = None):
 
     # Small checks for batch and sparsity 
     assert "batch" not in factors, "Batch should not be specified as factor"
@@ -218,7 +222,7 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
 
             levels_cat = {" - ".join(prod) : tuple(chain(*[levels_dict_flat[prod[i]] for i in range(len(prod))])) for prod in product(*[list(level.keys()) for level in levels_dict])}
 
-            if inc_batch:
+            if batch_key is not None:
                 x = torch.cat([torch.from_numpy(counts), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
             
             else:
@@ -228,12 +232,11 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
             y = torch.cat(factors_list, dim = -1)
 
         case "one-hot":
-            
             factors_list = torch.from_numpy(pd.get_dummies(metadata.apply(lambda x : " - ".join(x[factors]), axis=1)).to_numpy().astype(int)).double()
             cols = list(pd.get_dummies(metadata.apply(lambda x : " - ".join(x[factors]), axis=1)).columns)
             levels_cat = { cols[i] : tuple([0]*i + [1] + [0]*(len(cols)-1-i)) for i in range(len(cols))}
 
-            if inc_batch:
+            if batch_key is not None:
                 x = torch.cat([torch.from_numpy(counts), torch.from_numpy(metadata["batch"].astype(int).to_numpy()).double().view(-1,1)], dim=-1)
             
             else:
@@ -247,8 +250,8 @@ def construct_labels(counts, metadata, factors, style : Literal["concat", "one-h
 
 
 
-# Helper to go from dataset to train-test split loaders
-def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=256, keep_train=None, keep_test=None):
+# Helper to go from dataset to train-test split loaders 
+def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=256, keep_train=None, keep_test=None, batch_key=None):
 
     np.random.seed(42)
     torch.manual_seed(42)
@@ -259,6 +262,12 @@ def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=256, ke
             train_set, test_set = utils.random_split(dataset, split_pcts)
             train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
 
+            if batch_key is not None:
+                pass 
+
+            else:
+                l_mean, l_scale = train_set[:][0].sum(-1).log().mean(), train_set[:][0].sum(-1).log().var()
+            
     else:
             print(f"Train Levels: {keep_train}  // Test Levels: {keep_test}")
             train_set = ConcatTensorDataset([_get_subset(dataset, torch.tensor(key)) for key in inv_levels.keys() if inv_levels[key] in keep_train])
@@ -267,8 +276,14 @@ def distrib_dataset(dataset, levels, split_pcts = [0.8, 0.2], batch_size=256, ke
             
             train_loader, test_loader = utils.DataLoader(train_set, num_workers=4, batch_size=batch_size, shuffle=True), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
 
+            if batch_key is not None:
+                pass
+
+            else:
+                l_mean, l_scale = train_set[:][0].sum(-1).log().mean(), train_set[:][0].sum(-1).log().var()
+            
         
-    return train_set, test_set, train_loader, test_loader
+    return train_set, test_set, train_loader, test_loader, l_mean, l_scale
 
             
 
