@@ -64,7 +64,7 @@ def train_lin_reg(model, train_loader, test_loader, learning_rate=1e-3, epochs=1
 
                   
 # Helper to train Pyro models
-def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 4e-4, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}, early_stop=False):
+def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 1e-3, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}, early_stop=False):
     
     model = model.double().to(device)
     scheduler = MultiStepLR(optim_args.copy())
@@ -122,7 +122,7 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
 
 
 # Helper to train models that involve disjoint parameters during training
-def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, style : Literal["joint", "disjoint"] = "disjoint", warmup=0, early_stop=False):
+def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, betas=(0.90, 0.999), style : Literal["joint", "disjoint"] = "disjoint", warmup=0, early_stop=False):
 
     model = model.double().to(device)
     loss_track_test, loss_track_train = [], []
@@ -142,8 +142,8 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
     params_c_names = set(site["name"] for site in param_capture.trace.nodes.values() if "classifier_z" in site["name"])
     
     
-    optimizer_nonc = torch.optim.Adam(params_nonc, lr=lr, eps=eps, betas=(0.90, 0.999))
-    optimizer_c  = torch.optim.Adam(params_c, lr=lr, eps=eps, betas=(0.90, 0.999))
+    optimizer_nonc = torch.optim.Adam(params_nonc, lr=lr, eps=eps, betas=betas)
+    optimizer_c  = torch.optim.Adam(params_c, lr=lr, eps=eps, betas=betas)
     
     # Train loop
 
