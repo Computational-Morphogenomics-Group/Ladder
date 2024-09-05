@@ -237,7 +237,7 @@ class SCANVI(nn.Module):
     SCANVI
     """
     
-    def __init__(self, num_genes, num_labels, l_loc, l_scale, hidden_dim=128, num_layers=2,
+    def __init__(self, num_genes, l_loc, l_scale, num_labels, hidden_dim=128, num_layers=2,
                  latent_dim=10, alpha=1, scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
          
 
@@ -541,12 +541,20 @@ class Patches(nn.Module):
         return torch.tensor(np.array([np.concatenate([[ref_list[num]]*dim for num in elem]) for elem in idxs])).type_as(labels).to(labels.device)
 
     
-    def __init__(self, num_genes, num_labels, l_loc, l_scale, len_attrs, alphas, w_loc=[0,3], w_scale=[0.1,1], w_dim=2,
-                 latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=0, ld_normalize=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
+    def __init__(self, num_genes, l_loc, l_scale, num_labels, len_attrs, betas=None, w_loc=[0,3], w_scale=[0.1,1], w_dim=2,
+                 latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=0, ld_normalize=True, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
 
         
         # Init params & hyperparams
-        self.alphas = alphas
+        self.len_attrs=len_attrs # List keeping number of possibilities for each attribute
+
+        # Handle betas
+        if betas is None:
+            self.betas = [1]*len(self.len_attrs)
+        else:
+            assert len(betas) == len(self.len_attrs)
+            self.betas = betas
+        
         self.scale_factor = scale_factor
         self.num_genes = num_genes
         self.num_labels = num_labels
@@ -556,7 +564,6 @@ class Patches(nn.Module):
         self.l_scale = l_scale
         self.w_locs = w_loc # Prior means for attribute being 0,1 (indices correspond to attribute value)
         self.w_scales = w_scale # Prior scales for attribute being 0,1 (indices correspond to attribute value)
-        self.len_attrs=len_attrs # List keeping number of possibilities for each attribute
         self.batch_correction = batch_correction         # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction   # Distribution for the reconstruction
         self.sparsity = ld_sparsity  # Sparsity, used only with LD
@@ -744,7 +751,7 @@ class Patches(nn.Module):
                 cur_func = getattr(self, f"classifier_z_y{i}")
                 cur_logits = cur_func(z)
                 cur_dist =  dist.OneHotCategorical(logits=cur_logits)
-                classification_loss_z += self.alphas[i] * cur_dist.log_prob(y[..., attr_track : next_track])
+                classification_loss_z += self.betas[i] * cur_dist.log_prob(y[..., attr_track : next_track])
 
                 attr_track = next_track
             
@@ -788,7 +795,7 @@ class Patches(nn.Module):
                 cur_func = getattr(self, f"classifier_z_y{i}")
                 cur_logits = cur_func(z)
                 cur_dist =  dist.OneHotCategorical(logits=cur_logits)
-                classification_loss_z += self.alphas[i] * cur_dist.log_prob(y[..., attr_track : next_track])
+                classification_loss_z += self.betas[i] * cur_dist.log_prob(y[..., attr_track : next_track])
 
                 attr_track = next_track
             
