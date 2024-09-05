@@ -8,7 +8,7 @@ import pyro.poutine as poutine
 
 from typing import Literal
 
-from .basics import _broadcast_inputs, _make_func, _split_in_half
+from wh.models.basics import _broadcast_inputs, _make_func, _split_in_half
 from torch.nn.functional import softplus, softmax
 import numpy as np
 
@@ -25,7 +25,7 @@ class SCVI(nn.Module):
     SCVI
     """
     
-    def __init__(self, num_genes, l_loc, l_scale, hidden_dim=128, num_layers=1,
+    def __init__(self, num_genes, l_loc, l_scale, hidden_dim=128, num_layers=2,
                  latent_dim=10, scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
          
 
@@ -237,8 +237,8 @@ class SCANVI(nn.Module):
     SCANVI
     """
     
-    def __init__(self, num_genes, num_labels, l_loc, l_scale, hidden_dim=128, num_layers=1,
-                 latent_dim=10, alpha=0.1, scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
+    def __init__(self, num_genes, num_labels, l_loc, l_scale, hidden_dim=128, num_layers=2,
+                 latent_dim=10, alpha=1, scale_factor=1.0, batch_correction=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
          
 
         # Init params & hyperparams
@@ -542,7 +542,7 @@ class CSSCVI(nn.Module):
 
     
     def __init__(self, num_genes, num_labels, l_loc, l_scale, len_attrs, alphas, w_loc=[0,3], w_scale=[0.1,1], w_dim=2,
-                 latent_dim=5, num_layers=1, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=0, ld_normalize=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
+                 latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=0, ld_normalize=False, reconstruction : Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB"):
 
         
         # Init params & hyperparams
@@ -573,20 +573,20 @@ class CSSCVI(nn.Module):
         match self.reconstruction:
             
             case "ZINB":
-                self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+                self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim + (self.w_dim * self.num_labels), last_config="reparam", dist_config="normal")
                 
-                self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
+                self.x_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels) + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="zinb")
 
             case "Normal":
-                self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+                self.rho_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim + (self.w_dim * self.num_labels), last_config="reparam", dist_config="normal")
                 
-                self.x_decoder = _make_func(in_dims=self.latent_dim + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="normal")
+                self.x_decoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels) + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.num_genes, last_config="reparam", dist_config="normal")
 
             case "ZINB_LD" | "Normal_LD":
                 self.x_decoder = nn.Linear(self.latent_dim + (self.w_dim * self.num_labels) + int(self.batch_correction), self.num_genes*2, bias=self.normalize)
         
         
-        self.rho_l_encoder = _make_func(in_dims=self.num_genes + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="+lognormal", dist_config="+lognormal")
+        self.rho_l_encoder = _make_func(in_dims=self.num_genes + int(self.batch_correction), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim + (self.w_dim * self.num_labels), last_config="+lognormal", dist_config="+lognormal")
 
 
 
@@ -594,8 +594,8 @@ class CSSCVI(nn.Module):
             setattr(self, f"classifier_z_y{i}",  _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.len_attrs[i], last_config="default", dist_config="classifier"))
         
         
-        self.z_encoder = _make_func(in_dims=self.latent_dim, hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
-        self.w_encoder = _make_func(in_dims=self.latent_dim + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
+        self.z_encoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels), hidden_dims=[hidden_dim]*num_layers, out_dim=self.latent_dim, last_config="reparam", dist_config="normal")
+        self.w_encoder = _make_func(in_dims=self.latent_dim + (self.w_dim * self.num_labels) + self.num_labels, hidden_dims=[hidden_dim]*num_layers, out_dim=self.w_dim*self.num_labels, last_config="reparam", dist_config="normal")
 
 
     
