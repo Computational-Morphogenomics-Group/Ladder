@@ -527,9 +527,9 @@ class SCANVI(nn.Module):
 
 
 
-class CSSCVI(nn.Module):
+class Patches(nn.Module):
     """
-    CSSCVI
+    Patches
     """
 
     @staticmethod
@@ -564,7 +564,7 @@ class CSSCVI(nn.Module):
         self.epsilon = 0.006
 
         
-        super(CSSCVI, self).__init__()
+        super(Patches, self).__init__()
 
         
         # Setup NN functions
@@ -601,7 +601,7 @@ class CSSCVI(nn.Module):
     
     # Model
     def model(self, x, y):
-        pyro.module("csscvi", self)
+        pyro.module("patches", self)
 
         theta = pyro.param("inverse_dispersion", 10.0 * x.new_ones(self.num_genes),
                            constraint=constraints.positive)
@@ -704,7 +704,7 @@ class CSSCVI(nn.Module):
     
     # Guide
     def guide(self, x, y):
-        pyro.module("csscvi", self)
+        pyro.module("patches", self)
         
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
             
@@ -758,7 +758,7 @@ class CSSCVI(nn.Module):
 
     # Adverserial
     def adverserial(self, x, y):
-        pyro.module("csscvi", self)
+        pyro.module("patches", self)
         
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
             # Variational for rho & l
@@ -801,7 +801,7 @@ class CSSCVI(nn.Module):
     # Function to move points between conditions
     @torch.no_grad()
     def generate(self, x, y_source=None, y_target=None):
-        pyro.module("csscvi", self)
+        pyro.module("patches", self)
   
         ## Encode
         #Variational for rho & l
@@ -916,13 +916,13 @@ class CSSCVI(nn.Module):
 
     
     # Save self
-    def save(self, path="csscvi_params"):
+    def save(self, path="patches_params"):
         torch.save(self.state_dict(), path + "_torch.pth")
         pyro.get_param_store().save(path + "_pyro.pth")
 
 
     # Load
-    def load(self, path="csscvi_params", map_location=None):
+    def load(self, path="patches_params", map_location=None):
         pyro.clear_param_store()
 
         if map_location is None:
