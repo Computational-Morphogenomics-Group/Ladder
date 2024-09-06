@@ -55,21 +55,23 @@ def _get_subset(point_dataset, target):
 
 
 def _get_rmse_n_to_1(profiles, mean_profile, **kwargs):
-    return profiles.add(-1*mean_profile).square().mean(-1).sqrt().mean().item()
+    obj = profiles.add(-1*mean_profile).square().mean(-1).sqrt()
+    return obj.mean().item(), obj.var().item()
 
 def _get_corr_n_to_1(profiles, mean_profile, **kwargs):
-    return np.mean([pearsonr(profile, mean_profile)[0] for profile in profiles])
+    obj = [pearsonr(profile, mean_profile)[0] for profile in profiles]
+    return np.mean(obj), np.var(obj)
 
 def _get_chamf_n_to_1(samples, orig, verbose=False, **kwargs):
         
     matches = [torch.cdist(orig, samples[i], p=2).argmin(-1) for i in _get_iterator(len(samples), verbose=verbose)]
     chamf = torch.stack([orig.add(-1*(samples[i][matches[i]])).square().mean() for i in _get_iterator(len(samples), verbose=verbose)])
-    return chamf.mean().item()
+    return chamf.mean().item(), chamf.var().item()
 
 def _get_sliced_wasserstein_n_to_1(samples, orig, projections=1e3, verbose=False, **kwargs):
     unif_simplex_a, unif_simplex_b = torch.ones(orig.shape[0]).div(orig.shape[0]), torch.ones(samples.shape[1]).div(samples.shape[1])
     wd = torch.stack([ot.sliced_wasserstein_distance(orig, samples[i], unif_simplex_a, unif_simplex_b, int(projections)) for i in _get_iterator(len(samples), verbose=verbose)])
-    return wd.mean().item()
+    return wd.mean().item(), wd.var().item()
     
 
 ####################################
@@ -163,7 +165,7 @@ def get_reproduction_error(point_dataset, model, source=None, target=None, metri
     match metric:
         case "rmse" | "corr": # Add profile metrics here 
             mean_profile = get_normalized_profile(point_dataset, target=target, batched=batched)
-            preds_mean_error = _metric_func(pred_profiles, mean_profile, **kwargs)
+            preds_mean_error, preds_mean_var = _metric_func(pred_profiles, mean_profile, **kwargs)
         
         case "chamfer" | "swd": # Add cloud metrics here
             
@@ -177,12 +179,12 @@ def get_reproduction_error(point_dataset, model, source=None, target=None, metri
             if batched:
                 orig = orig[..., :-1]
                 
-            preds_mean_error = _metric_func(preds, orig, **kwargs)
+            preds_mean_error, preds_mean_var = _metric_func(preds, orig, **kwargs)
             
  
 
     
-    return preds_mean_error, pred_profiles, preds
+    return preds_mean_error, preds_mean_var, pred_profiles, preds
 
 
 
