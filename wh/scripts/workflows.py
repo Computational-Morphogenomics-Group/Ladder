@@ -56,7 +56,7 @@ class BaseWorkflow:
                  random_seed : int = None):
 
         # Set internals
-        self.anndata = anndata
+        self.anndata = utils.preprocess_anndata(anndata)
         self.config = config
         self.verbose = verbose
         self.random_seed = random_seed

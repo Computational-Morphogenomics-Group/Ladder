@@ -138,8 +138,10 @@ class ConcatTensorDataset(utils.ConcatDataset):
             return super(ConcatTensorDataset, self).__getitem__(idx)
 
 
-
+####################################################################################
 ############################ Internal Calls ############################
+####################################################################################
+
 # Batch processing for distrib_dataset
 def _process_batch_dd(dataset):
     l_mean, l_scale = [], []
@@ -202,11 +204,19 @@ def _process_array(arr):
     return result
         
 ####################################################################################
-
-
-
-
 ############################ Functions ############################
+####################################################################################
+
+# Simple preprocessing to conver to anndata
+def preprocess_anndata(anndat):
+    for colname in anndat.obs:
+        if any(isinstance(value, (int, float)) for value in anndat.obs[colname]):
+            anndat.obs[colname] = anndat.obs[colname].astype(float)
+
+        else:
+            anndat.obs[colname] = anndat.obs[colname].astype("category")
+
+    return anndat
 
 
 # Helper to get dataset for CVAE models
