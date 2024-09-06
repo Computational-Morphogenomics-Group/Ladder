@@ -384,7 +384,7 @@ Model: {self.model_type}
 
         # Grab source target if subset
         if subset is not None:
-            source, target = self.levels(subset), self.levels(subset)
+            source, target = torch.DoubleTensor(self.levels[subset]), torch.DoubleTensor(self.levels[subset])
         
         
         for metric in self.METRICS_REG.keys():
