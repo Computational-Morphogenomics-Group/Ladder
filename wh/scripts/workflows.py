@@ -408,8 +408,69 @@ Model: {self.model_type}
         
         
 
+
+
+
+class InterpretableWorkflow(BaseWorkflow):
+    """
+    Implements the functions for evaluating the interpretable model.
+    Requires a linear decoder by definition.
+    """
+
+    # Constructor
+    def __init__(self, 
+                 anndata : ad.AnnData,
+                 verbose : bool = False,
+                 random_seed : int = None):
+
+        BaseWorkflow.__init__(self, anndata=anndata, verbose=verbose, config="interpretable", random_seed=random_seed)
+
+
+
+    def get_conditional_loadings(self):
+        """
+        Return loadings per condition class or condition string (for SCANVI).
+        """
         
+        # TODO: Implement for SCANVI
+        assert self.model_type == "Patches"
+
+        # Grab all weights
+        mu, logits = self.model.get_weights()
         
+        # Subset to only conditional weights
+        mu = mu[self.latent_dim:]
+
+        # Stratify and sum per condition
+        cond_latent_ordering = sum([list(self.anndata.obs[factor].cat.categories) for factor in self.factors], []) ## Get latent ordering
+
+        # Set loadings to var  
+        for k in range(len(cond_latent_ordering)):
+            cond_latent = mu[k*self.w_dim : (k+1) * self.w_dim].sum(dim=0)
+            self.anndata.var[f"{cond_latent_ordering[k]}_score_{self.model_type}"] = cond_latent
+        
+        if self.verbose: print("Written condition specific loadings to 'self.anndata.var'.")    
+
+
+    def get_common_loadings(self):
+        """
+        Return latent loadings.
+        """
+        # Grab all weights
+        mu, logits = self.model.get_weights()
+        
+        # Subset to only common weights
+        mu = mu[:self.latent_dim]
+
+        # Set loadings to var
+        self.anndata.var[f"common_score_{self.model_type}"] = mu.sum(dim=0)
+
+        if self.verbose: print("Written common loadings to 'self.anndata.var'.")    
+
+
+
+
+    
 
 
 
