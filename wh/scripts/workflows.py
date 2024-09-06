@@ -37,7 +37,9 @@ class BaseWorkflow:
     # Static list of keys allowed in optim args
     OPT_LIST = ['optimizer', 'optim_args', 'gamma', 'milestones', 'lr', 'eps', 'betas']
 
-
+    # Static list of registered metrics
+    # Dict for pretty printing
+    METRICS_REG = {'rmse' : 'RMSE', 'corr' : 'Profile Correlation', 'swd' : '2-Sliced Wasserstein', 'CD' : 'Chamfer Discrepancy'}
 
 
 
@@ -79,7 +81,7 @@ Model: {self.model_type}
 """
     
     def __repr__(self):
-        return f'<Workflow / Config: {self.config}, Random Seed: {self.seed}, Verbose: {self.verbose}, Levels: {self.levels}, Batch Key: {self.batch_key}, Model: {self.model_type}>'
+        return f'<Workflow / Config: {self.config}, Random Seed: {self.random_seed}, Verbose: {self.verbose}, Levels: {self.levels}, Batch Key: {self.batch_key}, Model: {self.model_type}>'
 
     
     
@@ -126,7 +128,9 @@ Model: {self.model_type}
                                                                  batch_key=self.batch_key)
 
                 self.batch_correction = False
-        
+
+
+
 
         else:
             warnings.warn("ERROR: There seems to be no model registered to the workflow. Make sure not to run this function directly if you did so. You must instead run the 'prep_model()' function.")
@@ -165,6 +169,21 @@ Model: {self.model_type}
             
 
 
+    def _register_latent_dims(self):
+        """
+        Registers latent dimensions to be used downstream
+        """
+        match self.model_type:
+            case self.model_type if self.model_type in self.OPT_CLASS1 :
+                self.latent_dim = self.model.latent_dim
+
+            
+            case self.model_type if self.model_type in self.OPT_CLASS2 :
+                self.latent_dim = self.model.latent_dim
+                self.w_dim = self.model.w_dim
+        
+
+    
     
     def prep_model(self, 
                    factors : list,
@@ -205,6 +224,10 @@ Model: {self.model_type}
             warnings.warn("\nINFO: model_args ignored, using model defaults...")
             model_args = self._fetch_model_args({})
             self.model = constructor(self.anndata.X.shape[-1], self.l_mean, self.l_scale, **model_args)
+
+
+        # Register latents to model
+        self._register_latent_dims()
 
 
         if self.verbose: print(f'\nInitialized {self.model_type} model.\nModel arguments: {model_args}')
@@ -261,6 +284,13 @@ Model: {self.model_type}
                 self.model, self.train_loss, self.test_loss, _, _ = scripts.training.train_pyro_disjoint_param(self.model, train_loader=self.train_loader, test_loader=self.test_loader, verbose=True, num_epochs=max_epochs, convergence_threshold=convergence_threshold, lr=self.optim_args['lr'], eps=self.optim_args['eps'], style="joint", warmup=classifier_warmup)
 
 
+        # Move model to CPU for evaluation
+        # Downstream tasks can move model back to GPU
+        self.model = self.model.eval().cpu()
+        self.predictive = pyro.infer.Predictive(self.model.generate, num_samples=1)
+
+
+
         # Save the model if desired
         if params_save_path is not None:
             self.model.save(params_save_path)
@@ -273,6 +303,107 @@ Model: {self.model_type}
         """
         self.model.save(params_save_path)
 
+
+    
+    def load_model(self, params_load_path : str ):
+        """
+        Loads the parameters for the initialized model.
+        """
+        self.model.load(params_load_path)
+
+
+    def plot_loss(self, save_loss_path : str = None):
+        """
+        Plots the training / test losses for the model.
+        """
+        scripts.visuals.plot_loss(self.train_loss, self.test_loss, save_loss_path=save_loss_path)
+
+    
+
+    def write_embeddings(self): 
+        """
+        Write latent embeddings to the attached anndata.
+        """
+
+        # Add latent generation here per model
+        match self.model_type:
+            case "SCVI":
+                self.anndata.obsm['scvi_latent'] = (self.model.zl_encoder(torch.DoubleTensor(self.dataset[:][0]))[0]).detach().numpy()
+
+            
+            case "SCANVI":
+                z_latent = self.model.z2l_encoder(torch.DoubleTensor(self.dataset[:][0]))[0]
+                z_y = models.basics._broadcast_inputs([z2_latent, self.dataset[:][1]])
+                z_y = torch.cat(z2_y, dim=-1)
+                u_latent = self.model.z1_encoder(z2_y)[0]
+
+                self.anndata.obsm['scanvi_u_latent'] = u_latent.detach().numpy()
+                self.anndata.obsm['scanvi_z_latent'] = z_latent.detach().numpy()
+
+            
+            case "Patches":
+                rho_latent = self.model.rho_l_encoder(self.dataset[:][0])[0]
+                rho_y = models.basics._broadcast_inputs([rho_latent, self.dataset[:][1]])
+                rho_y = torch.cat(rho_y, dim=-1)
+
+
+                w_latent = self.model.w_encoder(rho_y)[0]
+                z_latent = self.model.z_encoder(rho_latent)[0]
+
+                self.anndata.obsm['patches_w_latent']  = w_latent.detach().numpy()
+                self.anndata.obsm['patches_z_latent']  = z_latent.detach().numpy()
+
+        if self.verbose: print("Written embeddings to object 'anndata.obsm' under workflow.")
+
+
+    # Evaluate the overall reconstruction error
+    def evaluate_reconstruction(self, subset : str = None, n_iter : int = 5):
+        printer = []
+        
+        for metric in self.METRICS_REG.keys():
+            if self.verbose : print(f"Calculating {self.METRICS_REG[metric]} ...")
+            preds_mean_error, preds_mean_var, pred_profiles, preds = scripts.metrics.get_reproduction_error(self.test_set, self.predictive, metric=metric, n_trials=n_iter, verbose=self.verbose, use_cuda=False)
+
+            printer.append(f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}")
+
+
+        print("Results\n===================")
+        for item in printer: print(item)
+            
         
         
+
+        
+        
+
+
+
+        
+class CrossConditionWorkflow(BaseWorkflow):
+    """
+    Implements the functions for evaluating cross-condition prediction.
+    Necessiates the use of a non-linear decoder for high quality transfers.
+    """
+
+    # Constructor
+    def __init__(self, 
+                 anndata : ad.AnnData,
+                 verbose : bool = False,
+                 random_seed : int = None):
+
+        BaseWorkflow.__init__(self, anndata=anndata, verbose=verbose, config="cross-condition", random_seed=random_seed)
+
+
+
+    
+
+
+    # Evaluate transfers for conditions
+    def evaluate_transfer(self, source : str, target : str, n_iter : int = 10):
+        """
+        Calculates the metrics for quantifying the quality of the transfer, does not require matchings.
+        """
+        pass
+    
+    
     
