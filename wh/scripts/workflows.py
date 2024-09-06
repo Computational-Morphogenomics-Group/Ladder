@@ -39,7 +39,11 @@ class BaseWorkflow:
 
     # Static list of registered metrics
     # Dict for pretty printing
-    METRICS_REG = {'rmse' : 'RMSE', 'corr' : 'Profile Correlation', 'swd' : '2-Sliced Wasserstein', 'CD' : 'Chamfer Discrepancy'}
+    METRICS_REG = {'rmse' : 'RMSE', 
+                   'corr' : 'Profile Correlation', 
+                   'swd' : '2-Sliced Wasserstein', 
+                   'chamfer' : 'Chamfer Discrepancy'
+                  }
 
 
 
@@ -278,10 +282,27 @@ Model: {self.model_type}
         # Match the funtion to run
         match self.model_type:
             case self.model_type if self.model_type in self.OPT_CLASS1:
-                self.model, self.train_loss, self.test_loss = scripts.training.train_pyro(self.model, train_loader=self.train_loader, test_loader=self.test_loader, verbose=True, num_epochs=max_epochs, convergence_threshold=convergence_threshold, optim_args = self.optim_args)
+                self.model, self.train_loss, self.test_loss = \
+                scripts.training.train_pyro(self.model, 
+                                            train_loader=self.train_loader, 
+                                            test_loader=self.test_loader, 
+                                            verbose=True, 
+                                            num_epochs=max_epochs, 
+                                            convergence_threshold=convergence_threshold, 
+                                            optim_args = self.optim_args)
 
             case self.model_type if self.model_type in self.OPT_CLASS2:
-                self.model, self.train_loss, self.test_loss, _, _ = scripts.training.train_pyro_disjoint_param(self.model, train_loader=self.train_loader, test_loader=self.test_loader, verbose=True, num_epochs=max_epochs, convergence_threshold=convergence_threshold, lr=self.optim_args['lr'], eps=self.optim_args['eps'], style="joint", warmup=classifier_warmup)
+                self.model, self.train_loss, self.test_loss, _, _ = \
+                scripts.training.train_pyro_disjoint_param(self.model, 
+                                                           train_loader=self.train_loader, 
+                                                           test_loader=self.test_loader, 
+                                                           verbose=True, 
+                                                           num_epochs=max_epochs, 
+                                                           convergence_threshold=convergence_threshold,
+                                                           lr=self.optim_args['lr'], 
+                                                           eps=self.optim_args['eps'], 
+                                                           style="joint", 
+                                                           warmup=classifier_warmup)
 
 
         # Move model to CPU for evaluation
@@ -359,10 +380,24 @@ Model: {self.model_type}
     # Evaluate the overall reconstruction error
     def evaluate_reconstruction(self, subset : str = None, n_iter : int = 5):
         printer = []
+        source, target = None, None
+
+        # Grab source target if subset
+        if subset is not None:
+            source, target = self.levels(subset), self.levels(subset)
+        
         
         for metric in self.METRICS_REG.keys():
             if self.verbose : print(f"Calculating {self.METRICS_REG[metric]} ...")
-            preds_mean_error, preds_mean_var, pred_profiles, preds = scripts.metrics.get_reproduction_error(self.test_set, self.predictive, metric=metric, n_trials=n_iter, verbose=self.verbose, use_cuda=False, batched=self.batch_correction)
+            preds_mean_error, preds_mean_var, pred_profiles, preds = \
+            scripts.metrics.get_reproduction_error(self.test_set,
+                                                   self.predictive, 
+                                                   metric=metric, 
+                                                   source=source, 
+                                                   target=target, 
+                                                   n_trials=n_iter, 
+                                                   verbose=self.verbose, 
+                                                   use_cuda=False, batched=self.batch_correction)
 
             printer.append(f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}")
 

@@ -63,7 +63,6 @@ def _get_corr_n_to_1(profiles, mean_profile, **kwargs):
     return np.mean(obj), np.var(obj)
 
 def _get_chamf_n_to_1(samples, orig, verbose=False, **kwargs):
-        
     matches = [torch.cdist(orig, samples[i], p=2).argmin(-1) for i in _get_iterator(len(samples), verbose=verbose)]
     chamf = torch.stack([orig.add(-1*(samples[i][matches[i]])).square().mean() for i in _get_iterator(len(samples), verbose=verbose)])
     return chamf.mean().item(), chamf.var().item()
@@ -142,6 +141,7 @@ def gen_profile_reproduction(point_dataset, model, source=None, target=None, n_t
 
 def get_reproduction_error(point_dataset, model, source=None, target=None, metric : Literal["chamfer", "rmse", "swd", "corr"] = "corr", n_trials=None, lib_size=1e4, batched=False, **kwargs):
 
+
     if n_trials is None:
         print("Defaulting to coupon collector for n_trials...")
         n_trials = _solve_coupon_collector(len(point_dataset))
@@ -166,6 +166,7 @@ def get_reproduction_error(point_dataset, model, source=None, target=None, metri
         case "rmse" | "corr": # Add profile metrics here 
             mean_profile = get_normalized_profile(point_dataset, target=target, batched=batched)
             preds_mean_error, preds_mean_var = _metric_func(pred_profiles, mean_profile, **kwargs)
+
         
         case "chamfer" | "swd": # Add cloud metrics here
             
@@ -180,11 +181,13 @@ def get_reproduction_error(point_dataset, model, source=None, target=None, metri
                 orig = orig[..., :-1]
                 
             preds_mean_error, preds_mean_var = _metric_func(preds, orig, **kwargs)
-            
- 
 
     
     return preds_mean_error, preds_mean_var, pred_profiles, preds
+
+            
+ 
+
 
 
 
