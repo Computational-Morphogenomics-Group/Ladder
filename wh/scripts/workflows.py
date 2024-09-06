@@ -362,7 +362,7 @@ Model: {self.model_type}
         
         for metric in self.METRICS_REG.keys():
             if self.verbose : print(f"Calculating {self.METRICS_REG[metric]} ...")
-            preds_mean_error, preds_mean_var, pred_profiles, preds = scripts.metrics.get_reproduction_error(self.test_set, self.predictive, metric=metric, n_trials=n_iter, verbose=self.verbose, use_cuda=False)
+            preds_mean_error, preds_mean_var, pred_profiles, preds = scripts.metrics.get_reproduction_error(self.test_set, self.predictive, metric=metric, n_trials=n_iter, verbose=self.verbose, use_cuda=False, batched=self.batch_correction)
 
             printer.append(f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}")
 
