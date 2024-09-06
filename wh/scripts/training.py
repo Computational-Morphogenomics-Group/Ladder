@@ -8,7 +8,7 @@ from torch.nn.functional import softplus, softmax
 from pyro.distributions.util import broadcast_shape
 from typing import Literal
 from pyro.optim import MultiStepLR
-import torch.optim as opt
+import pyro.optim as opt
 from pyro.infer import SVI, Trace_ELBO
 from tqdm import tqdm
 import numpy as np
@@ -64,8 +64,9 @@ def train_lin_reg(model, train_loader, test_loader, learning_rate=1e-3, epochs=1
 
                   
 # Helper to train Pyro models
-def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 1e-3, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}, early_stop=False):
-    
+def train_pyro(model, train_loader, test_loader, num_epochs=1500, convergence_threshold=1e-3, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 1e-3, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}):
+    print(f'Using device: {device}')
+
     model = model.double().to(device)
     scheduler = MultiStepLR(optim_args.copy())
     elbo = Trace_ELBO()
@@ -73,7 +74,8 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
 
 
 
-    loss_track_test, loss_track_train = [], []
+    loss_track_test, loss_track_train, losses_min = [], [], [np.inf]
+    min_count = 0
 
     if verbose:
         num_epochs = range(num_epochs)
@@ -108,24 +110,30 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, verbose=True, 
 
         loss_track_train.append(np.mean(losses))
         loss_track_test.append(np.mean(losses_test))
+        min_count += 1
+        
+        if ((np.min(losses_min) - np.mean(losses_test)) > convergence_threshold): 
+            losses_min.append(np.mean(losses_test))
+            min_count = 0
 
-        if len(loss_track_test) > 1 and early_stop and loss_track_test[-1] > loss_track_test[-2]:
-            print("Test loss higher than previous, stopping early...")
+        if min_count == 15:
+            print(f"Convergence detected with last 15 epochs improvement {losses_min[-1] - np.min(loss_track_test[-15:])}, ending training...")
             break
 
-        elif early_stop:
-            model.save("early_stop_params_best")
-
+    
     return model, loss_track_train, loss_track_test
 
 
 
 
 # Helper to train models that involve disjoint parameters during training
-def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, betas=(0.90, 0.999), style : Literal["joint", "disjoint"] = "disjoint", warmup=0, early_stop=False):
+def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, convergence_threshold=1e-3, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, betas=(0.90, 0.999), style : Literal["joint", "disjoint"] = "disjoint", warmup=0):
+
+    print(f'Using device: {device}')
 
     model = model.double().to(device)
-    loss_track_test, loss_track_train = [], []
+    loss_track_test, loss_track_train, losses_min = [], [], [np.inf]
+    min_count = 0
     
     # Defining losses
     loss_fn = lambda model, guide, x, y: pyro.infer.Trace_ELBO().differentiable_loss(model, guide, x, y)
@@ -239,12 +247,16 @@ def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500,
         loss_track_train.append(np.mean(losses))
         loss_track_test.append(np.mean(losses_test))
 
-        if len(loss_track_test) > 1 and early_stop and loss_track_test[-1] > loss_track_test[-2]:
-            print("Test loss higher than previous, stopping early...")
+        min_count += 1
+        
+        if ((np.min(losses_min) - np.mean(losses_test)) > convergence_threshold): 
+            losses_min.append(np.mean(losses_test))
+            min_count = 0
+
+        if min_count == 15:
+            print(f"Convergence detected with last 15 epochs improvement {losses_min[-1] - np.min(loss_track_test[-15:])}, ending training...")
             break
 
-        elif early_stop:
-            model.save("early_stop_params_best")
 
     
     return model, loss_track_train, loss_track_test, params_nonc_names, params_c_names
