@@ -7,7 +7,9 @@ from typing import Literal
 import sys, warnings
 import pandas as pd 
 import math
-import torch.optim as opt
+import pyro.optim as opt
+import pyro, torch 
+import numpy as np
 
 
 
@@ -35,23 +37,34 @@ class BaseWorkflow:
     # Static list of keys allowed in optim args
     OPT_LIST = ['optimizer', 'optim_args', 'gamma', 'milestones', 'lr', 'eps', 'betas']
 
+
+
+
+
+    
     # Constructor
     def __init__(self, 
                  anndata : ad.AnnData, 
                  config : Literal["cross-condition", "interpretable"] = "cross-condition",
-                 verbose : bool = False):
+                 verbose : bool = False,
+                 random_seed : int = None):
 
         # Set internals
         self.anndata = anndata
         self.config = config
         self.verbose = verbose
+        self.random_seed = random_seed
         self.batch_key = None
         self.levels = None
         self.model_type = None
 
+        if self.random_seed is not None:
+            np.random.seed(self.random_seed)
+            torch.manual_seed(self.random_seed)
+            pyro.util.set_rng_seed(self.random_seed)
 
         if self.verbose: print(f'Initialized workflow to run {config} model.')
-
+        
     
     def __str__(self):
         return f"""
@@ -59,17 +72,21 @@ class BaseWorkflow:
 =================================================
 Config: {self.config}
 Verbose: {self.verbose}
+Random Seed: {self.random_seed}
 Levels: {self.levels}
 Batch Key: {self.batch_key}
 Model: {self.model_type}
 """
     
     def __repr__(self):
-        return f'<Workflow / Config: {self.config}, Verbose: {self.verbose}, Levels: {self.levels}, Batch Key: {self.batch_key}, Model: {self.model_type}>'
+        return f'<Workflow / Config: {self.config}, Random Seed: {self.seed}, Verbose: {self.verbose}, Levels: {self.levels}, Batch Key: {self.batch_key}, Model: {self.model_type}>'
 
     
-        
+    
 
+
+
+    
     # Data prep - private call
     def _prep_data(self, 
                   factors : list, 
@@ -114,6 +131,8 @@ Model: {self.model_type}
         else:
             warnings.warn("ERROR: There seems to be no model registered to the workflow. Make sure not to run this function directly if you did so. You must instead run the 'prep_model()' function.")
 
+
+
     
     def _fetch_model_args(self, model_args):
         """
@@ -122,6 +141,7 @@ Model: {self.model_type}
         # For all models
         model_args["reconstruction"] = self.reconstruction
         model_args["batch_correction"] = self.batch_correction
+        model_args["scale_factor"] = 1./(self.minibatch_size * self.anndata.X.shape[-1])
 
         # Model specific
         match self.model_type:
@@ -134,6 +154,8 @@ Model: {self.model_type}
         
         return model_args
 
+
+
     
     def _clear_bad_optim_args(self):
         """
@@ -141,6 +163,8 @@ Model: {self.model_type}
         """
         self.optim_args = {k : v for k,v in self.optim_args.items() if k in self.OPT_LIST}
             
+
+
     
     def prep_model(self, 
                    factors : list,
@@ -153,6 +177,9 @@ Model: {self.model_type}
         """
         Creates the model object to be run. 
         """
+
+        # Flush params if needed
+        pyro.clear_param_store()
 
         # Register model type
         self.model_type = model_type
@@ -213,12 +240,39 @@ Model: {self.model_type}
 
             
         
+    def run_model(self, max_epochs : int = 300, convergence_threshold : float = 1e-3, classifier_warmup : int = 0, params_save_path : str = None):
+        """
+        Train the model. 
+        """
+
+
+        if dict(pyro.get_param_store()):
+            warnings.warn("WARNING: Retraining without resetting parameters is discouraged. Please call prep_model() again if you wish to rerun training.")
         
+        if self.verbose: print(f'Training initialized for a maximum of {max_epochs}, with convergence eps {convergence_threshold}.')
+        if self.verbose and params_save_path is not None: print(f'Model parameters will be saved to path: {params_save_path} ')
+        
+        # Match the funtion to run
+        match self.model_type:
+            case self.model_type if self.model_type in self.OPT_CLASS1:
+                self.model, self.train_loss, self.test_loss = scripts.training.train_pyro(self.model, train_loader=self.train_loader, test_loader=self.test_loader, verbose=True, num_epochs=max_epochs, convergence_threshold=convergence_threshold, optim_args = self.optim_args)
+
+            case self.model_type if self.model_type in self.OPT_CLASS2:
+                self.model, self.train_loss, self.test_loss, _, _ = scripts.training.train_pyro_disjoint_param(self.model, train_loader=self.train_loader, test_loader=self.test_loader, verbose=True, num_epochs=max_epochs, convergence_threshold=convergence_threshold, lr=self.optim_args['lr'], eps=self.optim_args['eps'], style="joint", warmup=classifier_warmup)
 
 
+        # Save the model if desired
+        if params_save_path is not None:
+            self.model.save(params_save_path)
     
         
         
+    def save_model(self,  params_save_path : str):
+        """
+        Saves the parameters for the currently loaded model.
+        """
+        self.model.save(params_save_path)
+
         
         
     

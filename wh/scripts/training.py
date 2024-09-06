@@ -65,7 +65,7 @@ def train_lin_reg(model, train_loader, test_loader, learning_rate=1e-3, epochs=1
                   
 # Helper to train Pyro models
 def train_pyro(model, train_loader, test_loader, num_epochs=1500, convergence_threshold=1e-3, verbose=True, device=get_device(), optim_args = {'optimizer': opt.Adam, 'optim_args': {'lr': 1e-3, 'eps' : 1e-2}, 'gamma': 1, 'milestones': [1e10]}):
-    print(f'Using device: {device}')
+    print(f'Using device: {device}\n')
 
     model = model.double().to(device)
     scheduler = MultiStepLR(optim_args.copy())
@@ -129,7 +129,7 @@ def train_pyro(model, train_loader, test_loader, num_epochs=1500, convergence_th
 # Helper to train models that involve disjoint parameters during training
 def train_pyro_disjoint_param(model, train_loader, test_loader, num_epochs=1500, convergence_threshold=1e-3, verbose=True, device=get_device(), lr=1e-3, eps=1e-2, betas=(0.90, 0.999), style : Literal["joint", "disjoint"] = "disjoint", warmup=0):
 
-    print(f'Using device: {device}')
+    print(f'Using device: {device}\n')
 
     model = model.double().to(device)
     loss_track_test, loss_track_train, losses_min = [], [], [np.inf]
