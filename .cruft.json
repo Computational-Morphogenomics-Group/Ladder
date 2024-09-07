@@ -1,0 +1,30 @@
+{
+  "template": "https://github.com/scverse/cookiecutter-scverse",
+  "commit": "bc81e1bc4655d391852d786b9fd60e627defaa3d",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "project_name": "Ladder",
+      "package_name": "Ladder",
+      "project_description": "A workflow to run cross-conditional  models for genomics data.",
+      "author_full_name": "zgr2788",
+      "author_email": "ob2391@columbia.edu",
+      "github_user": "zgr2788",
+      "github_repo": "Ladder",
+      "license": "MIT License",
+      "ide_integration": true,
+      "_copy_without_render": [
+        ".github/workflows/build.yaml",
+        ".github/workflows/test.yaml",
+        "docs/_templates/autosummary/**.rst"
+      ],
+      "_render_devdocs": false,
+      "_jinja2_env_vars": {
+        "lstrip_blocks": true,
+        "trim_blocks": true
+      },
+      "_template": "https://github.com/scverse/cookiecutter-scverse"
+    }
+  },
+  "directory": null
+}
