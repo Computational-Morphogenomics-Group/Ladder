@@ -53,77 +53,72 @@ class _make_func(nn.Module):
     def zinb_forward(self, inputs):
         gate_logits, mu = _split_in_half(self.fc(inputs))
         mu = softmax(mu, dim=-1)
-                
+
         return gate_logits, mu
 
-    
     def classifier_forward(self, inputs):
         logits = self.fc(inputs)
         return logits
 
-
     def normal_forward(self, inputs):
- 
-        ## Pre-conditions below
-                
-        # With broadcast
-        #z2_y = broadcast_inputs([z2, y])
-        #z2_y = torch.cat(z2_y, dim=-1)
 
-        # Without broadcast
-        #inputs = torch.cat([z1, y], dim=-1) must be satisfied
-            
-        _inputs= inputs.reshape(-1, inputs.size(-1))
+        ## Pre-conditions below
+
+        _inputs = inputs.reshape(-1, inputs.size(-1))
         hidden = self.fc(_inputs)
         hidden = hidden.reshape(inputs.shape[:-1] + hidden.shape[-1:])
-                
+
         loc, scale = _split_in_half(hidden)
         scale = softplus(scale)
-                
+
         return loc, scale
 
     def nl_forward(self, inputs):
         inputs = torch.log(1 + inputs)
         h1, h2 = _split_in_half(self.fc(inputs))
-                
+
         norm_loc, norm_scale = h1[..., :-1], softplus(h2[..., :-1])
         l_loc, l_scale = h1[..., -1:], softplus(h2[..., -1:])
-                
+
         return norm_loc, norm_scale, l_loc, l_scale
-    
-    
-    def __init__(self, in_dims, hidden_dims, out_dim, last_config : Literal["default", "+lognormal", "reparam"] = "default", dist_config : Literal["normal", "zinb", "categorical", "+lognormal", "classifier"] = "normal"):
+
+    def __init__(
+        self,
+        in_dims,
+        hidden_dims,
+        out_dim,
+        last_config: Literal["default", "+lognormal", "reparam"] = "default",
+        dist_config: Literal[
+            "normal", "zinb", "categorical", "+lognormal", "classifier"
+        ] = "normal",
+    ):
         super().__init__()
 
         # Layer configurations
         match last_config:
 
-            case "default": # Last will be 2*out for easy reparam
+            case "default":  # Last will be 2*out for easy reparam
                 dims = [in_dims] + hidden_dims + [out_dim]
 
-            case "+lognormal": # Last will include +2 for l_loc & l_scale
-                dims = [in_dims] + hidden_dims + [2*out_dim + 2]
+            case "+lognormal":  # Last will include +2 for l_loc & l_scale
+                dims = [in_dims] + hidden_dims + [2 * out_dim + 2]
 
             case "reparam":
                 dims = [in_dims] + hidden_dims + [2 * out_dim]
 
         # Forward configurations
         match dist_config:
-            case "zinb": # For decoders
+            case "zinb":  # For decoders
                 f_func = self.zinb_forward
 
-            case "classifier": # For discriminators
+            case "classifier":  # For discriminators
                 f_func = self.classifier_forward
 
-            case "normal": # For count precursors 
+            case "normal":  # For count precursors
                 f_func = self.normal_forward
 
-            case "+lognormal": # For counts
+            case "+lognormal":  # For counts
                 f_func = self.nl_forward
-                
+
         self.fc = _make_fc(dims)
-        self.forward = f_func   
-
-
-    
-        
+        self.forward = f_func
