@@ -1,6 +1,6 @@
 import ladder.models as models
 import ladder.scripts as scripts
-import ladder.data.real_data as utils
+import ladder.data as utils
 import anndata as ad
 import scanpy as sc
 from typing import Literal
@@ -226,7 +226,7 @@ Model: {self.model_type}
         self._prep_data(factors, batch_key, minibatch_size)
 
         # Grab model constructor
-        constructor = getattr(models.scvi_variants, self.model_type)
+        constructor = getattr(models, self.model_type)
 
         ## Additional inputs for models
 
@@ -321,22 +321,20 @@ Model: {self.model_type}
         # Match the funtion to run
         match self.model_type:
             case self.model_type if self.model_type in self.OPT_CLASS1:
-                self.model, self.train_loss, self.test_loss = (
-                    scripts.training.train_pyro(
-                        self.model,
-                        train_loader=self.train_loader,
-                        test_loader=self.test_loader,
-                        verbose=True,
-                        num_epochs=max_epochs,
-                        convergence_threshold=convergence_threshold,
-                        convergence_window=convergence_window,
-                        optim_args=self.optim_args,
-                    )
+                self.model, self.train_loss, self.test_loss = scripts.train_pyro(
+                    self.model,
+                    train_loader=self.train_loader,
+                    test_loader=self.test_loader,
+                    verbose=True,
+                    num_epochs=max_epochs,
+                    convergence_threshold=convergence_threshold,
+                    convergence_window=convergence_window,
+                    optim_args=self.optim_args,
                 )
 
             case self.model_type if self.model_type in self.OPT_CLASS2:
                 self.model, self.train_loss, self.test_loss, _, _ = (
-                    scripts.training.train_pyro_disjoint_param(
+                    scripts.train_pyro_disjoint_param(
                         self.model,
                         train_loader=self.train_loader,
                         test_loader=self.test_loader,
@@ -376,7 +374,7 @@ Model: {self.model_type}
         """
         Plots the training / test losses for the model.
         """
-        scripts.visuals._plot_loss(
+        scripts._plot_loss(
             self.train_loss, self.test_loss, save_loss_path=save_loss_path
         )
 
@@ -398,7 +396,7 @@ Model: {self.model_type}
                 z_latent = self.model.z2l_encoder(
                     torch.DoubleTensor(self.dataset[:][0])
                 )[0]
-                z_y = models.basics._broadcast_inputs([z2_latent, self.dataset[:][1]])
+                z_y = models._broadcast_inputs([z2_latent, self.dataset[:][1]])
                 z_y = torch.cat(z2_y, dim=-1)
                 u_latent = self.model.z1_encoder(z2_y)[0]
 
@@ -407,9 +405,7 @@ Model: {self.model_type}
 
             case "Patches":
                 rho_latent = self.model.rho_l_encoder(self.dataset[:][0])[0]
-                rho_y = models.basics._broadcast_inputs(
-                    [rho_latent, self.dataset[:][1]]
-                )
+                rho_y = models._broadcast_inputs([rho_latent, self.dataset[:][1]])
                 rho_y = torch.cat(rho_y, dim=-1)
 
                 w_latent = self.model.w_encoder(rho_y)[0]

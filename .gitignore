@@ -21,3 +21,6 @@ __pycache__/
 
 # Downloaded data
 /data/
+
+# ipynb
+*ipynb_checkpoints*
