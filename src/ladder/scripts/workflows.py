@@ -46,6 +46,13 @@ class BaseWorkflow:
         "chamfer": "Chamfer Discrepancy",
     }
 
+    SEP_METRICS_REG = {
+        "knn_error": "kNN Classifier Accuracy",
+        "kmeans_nmi": "K-Means NMI",
+        "kmeans_ari": "K-Means ARI",
+        "calc_asw": "Average Silhouette Width",
+    }
+
     # Constructor
     def __init__(
         self,
@@ -109,6 +116,15 @@ Model: {self.model_type}
                 print(
                     f"\nCondition classes : {self.factors}\nNumber of attributes per class : {self.len_attrs}"
                 )
+
+            # Add factorized to anndata column
+            self.anndata.obs["factorized"] = [
+                " - ".join(row[factor] for factor in self.factors)
+                for _, row in self.anndata.obs.iterrows()
+            ]
+            self.anndata.obs["factorized"] = self.anndata.obs["factorized"].astype(
+                "category"
+            )
 
             # Handle batch & create the datasets
             if self.batch_key is not None:
@@ -220,7 +236,7 @@ Model: {self.model_type}
 
         # Register model type
         self.model_type = model_type
-        self.reconstruction = "ZINB" if self.config == "cross_condition" else "ZINB_LD"
+        self.reconstruction = "ZINB" if self.config == "cross-condition" else "ZINB_LD"
 
         # Prepare the data
         self._prep_data(factors, batch_key, minibatch_size)
@@ -396,9 +412,9 @@ Model: {self.model_type}
                 z_latent = self.model.z2l_encoder(
                     torch.DoubleTensor(self.dataset[:][0])
                 )[0]
-                z_y = models._broadcast_inputs([z2_latent, self.dataset[:][1]])
-                z_y = torch.cat(z2_y, dim=-1)
-                u_latent = self.model.z1_encoder(z2_y)[0]
+                z_y = models._broadcast_inputs([z_latent, self.dataset[:][1]])
+                z_y = torch.cat(z_y, dim=-1)
+                u_latent = self.model.z1_encoder(z_y)[0]
 
                 self.anndata.obsm["scanvi_u_latent"] = u_latent.detach().numpy()
                 self.anndata.obsm["scanvi_z_latent"] = z_latent.detach().numpy()
@@ -544,4 +560,86 @@ class CrossConditionWorkflow(BaseWorkflow):
         """
         Calculates the metrics for quantifying the quality of the transfer, does not require matchings.
         """
-        pass
+        printer = []
+
+        # TODO: Nothing explicit for scVI, implement in future if needed
+        assert self.model_type in ("Patches", "SCANVI")
+
+        # Check to see the levels actually exist
+        # If so, grab
+        assert source, target in self.levels
+        source_key, target_key = torch.DoubleTensor(
+            self.levels[source]
+        ), torch.DoubleTensor(self.levels[target])
+
+        if self.verbose:
+            print(f"Evaluating mapping...\nSource: {source} --> Target: {target}")
+
+        for metric in self.METRICS_REG.keys():
+            if self.verbose:
+                print(f"Calculating {self.METRICS_REG[metric]} ...")
+            preds_mean_error, preds_mean_var, pred_profiles, preds = (
+                scripts.metrics.get_reproduction_error(
+                    self.test_set,
+                    self.predictive,
+                    metric=metric,
+                    source=source_key,
+                    target=target_key,
+                    n_trials=n_iter,
+                    verbose=self.verbose,
+                    use_cuda=False,
+                    batched=self.batch_correction,
+                )
+            )
+
+            printer.append(
+                f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}"
+            )
+
+        print("Results\n===================")
+        for item in printer:
+            print(item)
+
+    def evaluate_separability(self, factor: str = None):
+        """
+        Calculates mixing and separability metrics for latent spaces of the model.
+        If factor is supplied, only for that factor. Otherwise for the combination of all factors (as intended).
+        """
+
+        # Make sure factor is in factors or not provided
+        assert factor is None or factor in self.factors
+
+        # Factor is none means using the factorized column
+        if factor is None:
+            factor = "factorized"
+
+        # Decide on model
+        # Add latent generation here per model
+        match self.model_type:
+            case "SCVI":
+                embed = ["scvi_latent"]
+
+            case "SCANVI":
+                embed = ["scanvi_u_latent", "scanvi_z_latent"]
+
+            case "Patches":
+                embed = ["patches_w_latent", "patches_z_latent"]
+
+        # Run results for all embeddings
+        printer = []
+
+        for emb in embed:
+            if self.verbose:
+                print(f"Running for embedding: {emb}")
+
+            printer.append(f"\n{emb}\n=========")
+            for metric in self.SEP_METRICS_REG.keys():
+                func = getattr(scripts, metric)
+                printer.append(
+                    f"{self.SEP_METRICS_REG[metric]} : {np.round(func(self.anndata, factor, emb),3)}"
+                )
+
+        # Print results
+        print("Results\n===================")
+        for item in printer:
+            print(item)

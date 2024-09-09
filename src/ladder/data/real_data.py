@@ -252,12 +252,6 @@ def construct_labels(
 
     counts = _process_array(counts)
 
-    # Counts
-
-    # Pre-process metadata to remove object columns:
-    for colname in metadata.dtypes[metadata.dtypes == "object"].index:
-        metadata[colname] = metadata[colname].astype("category")
-
     # Decide on style of labeling:
     # Concat means one-hot attributes will be concatenated
     # One hot means every attribute combination will be considered a single one-hot label

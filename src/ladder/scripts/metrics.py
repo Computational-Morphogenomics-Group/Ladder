@@ -14,6 +14,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.cluster import KMeans
 from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
+from sklearn.metrics.cluster import silhouette_score
 import anndata as ad
 
 
@@ -322,3 +323,19 @@ def kmeans_ari(anndata: ad.AnnData, test_for: str, embed: str):
     y, y_pred = _run_k_means(anndata, test_for, embed)
 
     return adjusted_rand_score(y, y_pred)
+
+
+def calc_asw(anndata: ad.AnnData, test_for: str, embed: str):
+    """
+    Courtesy of scib (2021, 10.1038/s41592-021-01336-8)
+
+    Source: https://github.com/theislab/scib/blob/main/scib/metrics/silhouette.py
+    """
+    # Prep data
+    X, y = _prep_label_data(anndata, test_for, embed)
+
+    asw = silhouette_score(X=X, labels=y)
+
+    # Normalize width
+    asw = (asw + 1) / 2
+    return asw
