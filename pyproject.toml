@@ -23,19 +23,19 @@ classifiers = [
 ]
 dependencies = [
   "anndata",
-  "pyro-ppl",
-  "torch",
   "matplotlib",
-  "pandas",
   "numpy",
-  "umap-learn",
-  "scikit-learn",
+  "pandas",
+  "pot",
+  "pyro-ppl",
+  "requests",
   "scanpy",
-  "seaborn",
-  "tqdm",
-  "POT",
+  "scikit-learn",
   "scipy",
-  "requests"
+  "seaborn",
+  "torch",
+  "tqdm",
+  "umap-learn",
 ]
 optional-dependencies.dev = [
   "pre-commit",
@@ -66,13 +66,12 @@ urls.Documentation = "https://ladder.readthedocs.io/"
 urls.Homepage = "https://github.com/Computational-Morphogenomics-Group/Ladder"
 urls.Source = "https://github.com/Computational-Morphogenomics-Group/Ladder"
 
-
 [tool.hatch.build.targets.sdist]
 exclude = [
-     "/.github",
-     "/.git",
-     "/.vscode",
-     "/data"
+  "/.github",
+  "/.git",
+  "/.vscode",
+  "/data",
 ]
 
 [tool.hatch.build.targets.wheel]
