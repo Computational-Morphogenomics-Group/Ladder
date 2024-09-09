@@ -23,8 +23,18 @@ classifiers = [
 ]
 dependencies = [
   "anndata",
-  # for debug logging (referenced from the issue template)
-  "session-info",
+  "pyro-ppl",
+  "torch",
+  "matplotlib",
+  "pandas",
+  "numpy",
+  "umap-learn",
+  "scikit-learn",
+  "scanpy",
+  "seaborn",
+  "tqdm",
+  "POT",
+  "scipy"
 ]
 optional-dependencies.dev = [
   "pre-commit",
@@ -51,12 +61,12 @@ optional-dependencies.test = [
   "pytest",
 ]
 # https://docs.pypi.org/project_metadata/#project-urls
-urls.Documentation = "https://Ladder.readthedocs.io/"
-urls.Homepage = "https://github.com/zgr2788/Ladder"
-urls.Source = "https://github.com/zgr2788/Ladder"
+urls.Documentation = "https://ladder.readthedocs.io/"
+urls.Homepage = "https://github.com/Computational-Morphogenomics-Group/Ladder"
+urls.Source = "https://github.com/Computational-Morphogenomics-Group/Ladder"
 
 [tool.hatch.build.targets.wheel]
-packages = [ "src/Ladder" ]
+packages = [ "src/ladder" ]
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -119,7 +129,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = [ "Ladder" ]
+source = [ "ladder" ]
 omit = [
   "**/test_*.py",
 ]
