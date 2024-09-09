@@ -2,10 +2,16 @@
 
 [![Tests][badge-tests]][link-tests]
 [![Documentation][badge-docs]][link-docs]
+[![License][https://black.readthedocs.io/en/stable/_static/license.svg]][https://github.com/Computational-Morphogenomics-Group/ladder/blob/main/LICENSE]  <!-- Courtesy of black docs for now --> 
+[![Black][https://img.shields.io/badge/code%20style-black-000000.svg]][https://github.com/psf/black]
+
+<a href="https://github.com/Computational-Morphogenomics-Group/ladder/blob/main/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a>
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
 [badge-tests]: https://img.shields.io/github/actions/workflow/status/Computational-Morphogenomics-Group/Ladder/test.yaml?branch=main
 [link-tests]: https://github.com/Computational-Morphogenomics-Group/Ladder/actions/workflows/test.yml
 [badge-docs]: https://img.shields.io/readthedocs/Ladder
+
 
 A workflow to run cross-conditional  models for genomics data.
 
@@ -51,7 +57,7 @@ If you found a bug, please use the [issue tracker][issue-tracker].
 
 [scverse-discourse]: https://discourse.scverse.org/
 [issue-tracker]: https://github.com/Computational-Morphogenomics-Group/Ladder/issues
-[changelog]: https://Ladder.readthedocs.io/latest/changelog.html
-[link-docs]: https://Ladder.readthedocs.io
-[link-api]: https://Ladder.readthedocs.io/latest/api.html
-[link-pypi]: https://pypi.org/project/Ladder
+[changelog]: https://ladder.readthedocs.io/latest/changelog.html
+[link-docs]: https://ladder.readthedocs.io
+[link-api]: https://ladder.readthedocs.io/latest/api.html
+[link-pypi]: https://pypi.org/project/ladder

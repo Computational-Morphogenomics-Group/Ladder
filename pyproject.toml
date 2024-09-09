@@ -3,7 +3,7 @@ build-backend = "hatchling.build"
 requires = [ "hatchling" ]
 
 [project]
-name = "Ladder"
+name = "ladder"
 version = "0.0.1"
 description = "A workflow to run cross-conditional models for genomics data."
 readme = "README.md"
