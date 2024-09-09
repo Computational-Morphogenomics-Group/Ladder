@@ -34,7 +34,8 @@ dependencies = [
   "seaborn",
   "tqdm",
   "POT",
-  "scipy"
+  "scipy",
+  "requests"
 ]
 optional-dependencies.dev = [
   "pre-commit",
@@ -64,6 +65,15 @@ optional-dependencies.test = [
 urls.Documentation = "https://ladder.readthedocs.io/"
 urls.Homepage = "https://github.com/Computational-Morphogenomics-Group/Ladder"
 urls.Source = "https://github.com/Computational-Morphogenomics-Group/Ladder"
+
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+     "/.github",
+     "/.git",
+     "/.vscode",
+     "/data"
+]
 
 [tool.hatch.build.targets.wheel]
 packages = [ "src/ladder" ]

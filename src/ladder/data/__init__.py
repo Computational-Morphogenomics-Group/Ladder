@@ -6,3 +6,5 @@ from .real_data import (
     distrib_dataset,
     make_lin_reg_data,
 )
+
+from .builtin_data import get_data

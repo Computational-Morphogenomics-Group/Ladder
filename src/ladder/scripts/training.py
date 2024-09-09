@@ -93,8 +93,6 @@ def train_pyro(
     return model, loss_track_train, loss_track_test
 
 
-
-
 # Helper to train models that involve disjoint parameters during training
 def train_pyro_disjoint_param(
     model,

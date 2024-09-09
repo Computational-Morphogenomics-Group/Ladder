@@ -298,7 +298,7 @@ Model: {self.model_type}
         self,
         max_epochs: int = 1500,
         convergence_threshold: float = 1e-3,
-        convergence_window : int = 15,
+        convergence_window: int = 15,
         classifier_warmup: int = 0,
         params_save_path: str = None,
     ):
@@ -329,7 +329,7 @@ Model: {self.model_type}
                         verbose=True,
                         num_epochs=max_epochs,
                         convergence_threshold=convergence_threshold,
-                        convergence_window = convergence_window,
+                        convergence_window=convergence_window,
                         optim_args=self.optim_args,
                     )
                 )
