@@ -7,7 +7,7 @@ from typing import Literal
 import sys, warnings
 import pandas as pd
 import math
-import pyro.optim as opt
+import torch.optim as opt
 import pyro, torch
 import numpy as np
 
