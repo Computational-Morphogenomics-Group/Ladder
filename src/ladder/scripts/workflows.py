@@ -7,7 +7,6 @@ from typing import Literal
 import sys, warnings
 import pandas as pd
 import math
-import torch.optim as opt
 import pyro, torch
 import numpy as np
 
@@ -96,7 +95,11 @@ Model: {self.model_type}
 
     # Data prep - private call
     def _prep_data(
-        self, factors: list, batch_key: str = None, minibatch_size: int = 128
+        self,
+        factors: list,
+        batch_key: str = None,
+        cell_type_label_key: str = None,
+        minibatch_size: int = 128,
     ):
         """
         Creates the required data objects to run the model
@@ -109,7 +112,9 @@ Model: {self.model_type}
                 len(pd.get_dummies(self.anndata.obs[factor]).columns)
                 for factor in factors
             ]
+
             self.batch_key = batch_key
+            self.cell_type_label_key = cell_type_label_key
             self.minibatch_size = minibatch_size
 
             if self.verbose:
@@ -222,6 +227,7 @@ Model: {self.model_type}
         self,
         factors: list,
         batch_key: str = None,
+        cell_type_label_key: str = None,
         minibatch_size: int = 128,
         model_type: Literal["SCVI", "SCANVI", "Patches"] = "Patches",
         model_args: dict = None,
@@ -239,7 +245,7 @@ Model: {self.model_type}
         self.reconstruction = "ZINB" if self.config == "cross-condition" else "ZINB_LD"
 
         # Prepare the data
-        self._prep_data(factors, batch_key, minibatch_size)
+        self._prep_data(factors, batch_key, cell_type_label_key, minibatch_size)
 
         # Grab model constructor
         constructor = getattr(models, self.model_type)
@@ -285,7 +291,7 @@ Model: {self.model_type}
         match self.model_type:
             case self.model_type if self.model_type in self.OPT_CLASS1:
                 self.optim_args = {
-                    "optimizer": opt.Adam,
+                    "optimizer": torch.optim.Adam,
                     "optim_args": {
                         "lr": optim_args["lr"],
                         "eps": optim_args["eps"],
@@ -385,6 +391,8 @@ Model: {self.model_type}
         Loads the parameters for the initialized model.
         """
         self.model.load(params_load_path)
+        self.model = self.model.eval().cpu().double()
+        self.predictive = pyro.infer.Predictive(self.model.generate, num_samples=1)
 
     def plot_loss(self, save_loss_path: str = None):
         """
@@ -433,10 +441,48 @@ Model: {self.model_type}
         if self.verbose:
             print("Written embeddings to object 'anndata.obsm' under workflow.")
 
+    def _subset_by_type(self, cell_type: str):
+        """
+        Used to subset the test set to a single cell type.
+        """
+
+        # Make sure we have that type
+        assert cell_type in list(self.anndata.obs[self.cell_type_label_key].astype(str))
+
+        # Do the subset
+        if self.verbose:
+            print(f"Subsetting test to {cell_type} cells")
+
+        test_subset = self.test_set[
+            list(
+                np.where(
+                    (
+                        self.converter.map_to_anndat(self.test_set[:]).obs[
+                            self.cell_type_label_key
+                        ]
+                        == cell_type
+                    ).to_numpy()
+                )[0]
+            )
+        ]
+
+        # Cast back into dataset for downstream tasks
+        test_subset = torch.utils.data.TensorDataset(*test_subset)
+
+        return test_subset
+
     # Evaluate the overall reconstruction error
-    def evaluate_reconstruction(self, subset: str = None, n_iter: int = 5):
+    def evaluate_reconstruction(
+        self, subset: str = None, cell_type: str = None, n_iter: int = 5
+    ):
         printer = []
         source, target = None, None
+
+        # Grab specific cell type if so
+        if cell_type is not None:
+            test_set = self._subset_by_type(cell_type)
+        else:
+            test_set = self.test_set
 
         # Grab source target if subset
         if subset is not None:
@@ -449,7 +495,7 @@ Model: {self.model_type}
                 print(f"Calculating {self.METRICS_REG[metric]} ...")
             preds_mean_error, preds_mean_var, pred_profiles, preds = (
                 scripts.metrics.get_reproduction_error(
-                    self.test_set,
+                    test_set,
                     self.predictive,
                     metric=metric,
                     source=source,
@@ -556,7 +602,9 @@ class CrossConditionWorkflow(BaseWorkflow):
         )
 
     # Evaluate transfers for conditions
-    def evaluate_transfer(self, source: str, target: str, n_iter: int = 10):
+    def evaluate_transfer(
+        self, source: str, target: str, cell_type: str = None, n_iter: int = 10
+    ):
         """
         Calculates the metrics for quantifying the quality of the transfer, does not require matchings.
         """
@@ -564,6 +612,12 @@ class CrossConditionWorkflow(BaseWorkflow):
 
         # TODO: Nothing explicit for scVI, implement in future if needed
         assert self.model_type in ("Patches", "SCANVI")
+
+        # Grab specific cell type if so
+        if cell_type is not None:
+            test_set = self._subset_by_type(cell_type)
+        else:
+            test_set = self.test_set
 
         # Check to see the levels actually exist
         # If so, grab
@@ -580,7 +634,7 @@ class CrossConditionWorkflow(BaseWorkflow):
                 print(f"Calculating {self.METRICS_REG[metric]} ...")
             preds_mean_error, preds_mean_var, pred_profiles, preds = (
                 scripts.metrics.get_reproduction_error(
-                    self.test_set,
+                    test_set,
                     self.predictive,
                     metric=metric,
                     source=source_key,
