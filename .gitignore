@@ -21,6 +21,8 @@ __pycache__/
 
 # Downloaded data
 /data/
+docs/*data/*
+docs/*params/*
 /params/
 
 # ipynb checkpoints if generated anywhere
