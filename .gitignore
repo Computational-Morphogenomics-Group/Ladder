@@ -21,6 +21,16 @@ __pycache__/
 
 # Downloaded data
 /data/
+docs/*data/*
+docs/*params/*
+/params/
 
-# ipynb
+# Plots
+/plots/
+docs/*plots*
+
+# ipynb checkpoints if generated anywhere
 *ipynb_checkpoints*
+
+# Model params if generated
+*.pth

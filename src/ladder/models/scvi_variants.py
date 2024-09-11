@@ -691,7 +691,7 @@ class Patches(nn.Module):
     """
 
     @staticmethod
-    def concat_lat_dims(labels, ref_list, dim):
+    def _concat_lat_dims(labels, ref_list, dim):
         """
         Function to organize W prior from labels.
         """
@@ -877,10 +877,10 @@ class Patches(nn.Module):
                 attr_track = next_track
 
             w_loc = torch.concat(
-                [self.concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim=-1
+                [self._concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim=-1
             )
             w_scale = torch.concat(
-                [self.concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s],
+                [self._concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s],
                 dim=-1,
             )
 
@@ -1008,7 +1008,7 @@ class Patches(nn.Module):
             w_loc, w_scale = self.w_encoder(rho_y)
             z_loc, z_scale = self.z_encoder(rho)
 
-            w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+            pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
             z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
             # Classification for w (good) and z (bad)
@@ -1107,10 +1107,10 @@ class Patches(nn.Module):
             attr_track = next_track
 
         w_loc = torch.concat(
-            [self.concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim=-1
+            [self._concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim=-1
         )
         w_scale = torch.concat(
-            [self.concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s], dim=-1
+            [self._concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s], dim=-1
         )
 
         z_loc, z_scale = self.z_encoder(rho_enc)

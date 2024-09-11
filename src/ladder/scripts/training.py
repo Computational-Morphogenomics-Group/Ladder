@@ -8,7 +8,7 @@ from torch.nn.functional import softplus, softmax
 from pyro.distributions.util import broadcast_shape
 from typing import Literal
 from pyro.optim import MultiStepLR
-import pyro.optim as opt
+import torch.optim as opt
 from pyro.infer import SVI, Trace_ELBO
 from tqdm import tqdm
 import numpy as np

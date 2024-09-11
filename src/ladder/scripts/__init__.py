@@ -5,6 +5,7 @@ from .metrics import (
     knn_error,
     kmeans_nmi,
     kmeans_ari,
+    calc_asw,
 )
 from .training import get_device, train_pyro, train_pyro_disjoint_param
 from .workflows import InterpretableWorkflow, CrossConditionWorkflow

@@ -8,27 +8,42 @@ from tqdm import tqdm
 
 # Static data paths, update when necessary
 DATA_PATHS = {
-    "Vu": " https://drive.google.com/uc?export=download&id=1quCP3403hOPG5Q8cy1KWZui_a0mJrQ5J",
-    "Ji": " https://drive.google.com/uc?export=download&id=1QVjRyZmMArI0ex0NvpJcAvTxvt8JgbwA",
+    "Vu": [
+        "https://drive.google.com/uc?export=download&id=1quCP3403hOPG5Q8cy1KWZui_a0mJrQ5J",
+        "vu_2022_ay_wh.h5ad",
+    ],
+    "Ji": [
+        "https://drive.google.com/uc?export=download&id=1QVjRyZmMArI0ex0NvpJcAvTxvt8JgbwA",
+        "ji_2020_tumor_ct.h5ad",
+    ],
+    "Mascharak": [
+        "https://drive.google.com/uc?export=download&id=1EEUefuOWAXo5pgSEgMTsfIGT2ik64pJN",
+        "mascharak_2022_tn_wh.h5ad",
+    ],
+}
+
+# Static parameter paths, update when necessary
+PARAM_PATHS = {
+    "SCVI": (
+        "https://drive.google.com/uc?export=download&id=1p85P0o0aJ47tWJc7SoWycjWKBdqFOy9i",
+        "https://drive.google.com/uc?export=download&id=1RRJA_UdRogJptyama3_-ViCWb1TwBzLI",
+    ),
+    "SCANVI": (
+        "https://drive.google.com/uc?export=download&id=1YUZUtGqwQrreG-qUvgb3WGTj3ZB_WrAN",
+        "https://drive.google.com/uc?export=download&id=1d2m1bvN8hzAP4tL-GxecX8-bd1OBOWJq",
+    ),
+    "Patches": (
+        "https://drive.google.com/uc?export=download&id=1Si2HyvArOKNh0efn2DLg2F7d6RjcY-4S",
+        "https://drive.google.com/uc?export=download&id=1zX1K7oyBKF9ArQ7vUpqk1ehrO81a6rHO",
+    ),
 }
 
 
-def get_data(
-    dataset: Literal["Vu", "Ji"],
-    save_path: str = "./data/vu_2022_ay_wh.h5ad",
-    smoke_test: bool = False,
+def _download_data(
+    response: requests.Response,
+    save_path: str,
+    smoke_test: bool,
 ):
-    """
-    Used to fetch Vu (2022, 10.1016/j.celrep.2022.111155) data for tutorials.
-    """
-
-    assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"
-
-    # Send download request
-    response = requests.get(DATA_PATHS[dataset], allow_redirects=True)
-
-    # Get response
-
     ## Good
     if response.status_code == 200 and not smoke_test:
 
@@ -45,8 +60,29 @@ def get_data(
                     progress_bar.update(len(data))
                     f.write(data)
 
-        print(f"Dataset saved at {save_path}")
+        print(f"Object saved at {save_path}")
 
     ## Unexpected, means download link broke
     else:
-        raise Exception(f"Dataset not found at URL for {dataset}")
+        raise Exception(f"Object not found at URL for {dataset}")
+
+
+def get_data(
+    dataset: Literal["Vu", "Ji", "Mascharak"],
+    save_path: str = "./data/",
+    smoke_test: bool = False,
+):
+    """
+    Used to fetch data for tutorials.
+    """
+
+    assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"
+
+    # Reorganize param paths
+    save_path = save_path + DATA_PATHS[dataset][1]
+
+    # Send download request
+    response = requests.get(DATA_PATHS[dataset][0], allow_redirects=True)
+
+    # Get and process response
+    _download_data(response, save_path, smoke_test)
