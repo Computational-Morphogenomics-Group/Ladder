@@ -1,3 +1,8 @@
+"""
+This module houses the model definitions that are mostly based on
+the scVI (https://www.nature.com/articles/s41592-018-0229-2) skeleton.
+"""
+
 import torch
 import torch.nn as nn
 from torch.distributions import constraints
@@ -22,7 +27,49 @@ import numpy as np
 
 class SCVI(nn.Module):
     """
-    SCVI
+    scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through `Pyro`.
+
+
+    Parameters
+    ----------
+    num_genes : int
+        Size of the gene space.
+
+    l_loc : float or array-like
+        Either a single value for log-mean library size, or a 1D array-like of values if `batch_correction`.
+
+    l_scale : float or array-like
+        Either a single value for log-variance library size, or a 1D array-like of values if `batch_correction`.
+
+    hidden_dim : int, default: 128
+        Size of the hidden layers throughout the model.
+
+    num_layers : int, default: 2
+        Number of hidden layers between any input and output layer.
+
+    latent_dim : int
+        Size of the latent variable `z`.
+
+    scale_factor : float, default: 1.0
+        Factor used to scale and normalize the loss.
+
+    batch_correction : bool, default: False
+        If `True`, expects batch to be appended to input and corrects for batch.
+
+    reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
+        The distribiution assumed to model the input data.
+
+
+
+
+    Notes
+    -----
+    The 'LD' (https://academic.oup.com/bioinformatics/article/36/11/3418/5807606) variants
+    for `reconstruction` are used in interpretable modules. We recommend setting the `scale_factor`
+    as :
+
+    .. math:: \frac{1}{\text{batch_size} * \text{num_genes}}
+
     """
 
     def __init__(
@@ -30,11 +77,11 @@ class SCVI(nn.Module):
         num_genes,
         l_loc,
         l_scale,
-        hidden_dim=128,
-        num_layers=2,
-        latent_dim=10,
-        scale_factor=1.0,
-        batch_correction=False,
+        hidden_dim: int = 128,
+        num_layers: int = 2,
+        latent_dim: int = 10,
+        scale_factor: float = 1.0,
+        batch_correction: bool = False,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
 
@@ -88,6 +135,18 @@ class SCVI(nn.Module):
 
     # Model
     def model(self, x, y=None):
+        """
+        Generative model for scVI.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y : torch.Tensor or NoneType, default: None
+            Not used in a meaningful way, kept for compatibility.
+
+        """
         pyro.module("scvi", self)
 
         # Inverse dispersions
@@ -175,6 +234,18 @@ class SCVI(nn.Module):
 
     # Guide
     def guide(self, x, y=None):
+        """
+        Approximate variational posteriorfor scVI.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y : torch.Tensor or NoneType, default: None
+            Not used in a meaningful way, kept for compatibility.
+
+        """
         pyro.module("scvi", self)
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
@@ -187,6 +258,27 @@ class SCVI(nn.Module):
 
     # Generate
     def generate(self, x, y_source=None, y_target=None):
+        """
+        Function used post-training for Oracle-scVI to facilitate transfer between conditional labels.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y_source : torch.Tensor or NoneType, default: None
+            Not used in a meaningful way, kept for compatibility.
+
+        y_target : torch.Tensor or NoneType, default: None
+            Not used in a meaningful way, kept for compatibility.
+
+
+        Returns
+        -------
+        x_rec : torch.Tensor
+            Reconstructed gene counts.
+
+        """
         pyro.module("scvi", self)
 
         ## Encode
@@ -247,6 +339,21 @@ class SCVI(nn.Module):
 
     # Get linear weights if LD
     def get_weights(self):
+        """
+        Returns interpretable coefficients for latents.
+
+        Refer to Notes for details.
+
+
+        Returns
+        -------
+        loc, mu : torch.Tensor
+            Mu of ZINB or Gaussian.
+
+        scale, logits : torch.Tensor
+            Either the variance of the Gaussian or ZI logits for ZINB.
+
+        """
         assert self.reconstruction.endswith("LD")
         match self.reconstruction:
             case "ZINB_LD":
@@ -273,11 +380,34 @@ class SCVI(nn.Module):
 
     # Save self
     def save(self, path="scvi_params"):
+        """
+        Saves model parameters to disk.
+
+
+        Parameters
+        ----------
+        path : str, default: "scvi_params"
+            Path to save model parameters.
+
+        """
         torch.save(self.state_dict(), path + "_torch.pth")
         pyro.get_param_store().save(path + "_pyro.pth")
 
     # Load
     def load(self, path="scvi_params", map_location=None):
+        """
+        Loads model parameters from disk.
+
+
+        Parameters
+        ----------
+        path : str, default: "scvi_params"
+            Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
+
+        map_location : str or NoneType, default: None
+            Specifies where the model should be loaded. See `torch.device` for details.
+
+        """
         pyro.clear_param_store()
 
         if map_location is None:
@@ -302,7 +432,51 @@ class SCVI(nn.Module):
 ## scANVI taken from https://pyro.ai/examples/scanvi.html
 class SCANVI(nn.Module):
     """
-    SCANVI
+    Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through `Pyro`.
+
+
+    Parameters
+    ----------
+    num_genes : int
+        Size of the gene space.
+
+    l_loc : float or array-like
+        Either a single value for log-mean library size, or a 1D array-like of values if `batch_correction`.
+
+    l_scale : float or array-like
+        Either a single value for log-variance library size, or a 1D array-like of values if `batch_correction`.
+
+    num_labels : int
+        Length of the one-hot encoded condition labels expected in the data.
+
+    hidden_dim : int, default: 128
+        Size of the hidden layers throughout the model.
+
+    num_layers : int, default: 2
+        Number of hidden layers between any input and output layer.
+
+    latent_dim : int
+        Size of the latent variable `z`.
+
+    alpha : float
+        Factor used to scale the classifier loss.
+
+    scale_factor : float, default: 1.0
+        Factor used to scale and normalize the loss.
+
+    batch_correction : bool, default: False
+        If `True`, expects batch to be appended to input and corrects for batch.
+
+    reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
+        The distribiution assumed to model the input data.
+
+
+
+
+    Notes
+    -----
+    The notes from scVI apply here as well.
+
     """
 
     def __init__(
@@ -311,12 +485,12 @@ class SCANVI(nn.Module):
         l_loc,
         l_scale,
         num_labels,
-        hidden_dim=128,
-        num_layers=2,
-        latent_dim=10,
-        alpha=1,
-        scale_factor=1.0,
-        batch_correction=False,
+        hidden_dim: int = 128,
+        num_layers: int = 2,
+        latent_dim: int = 10,
+        alpha: float = 1,
+        scale_factor: float = 1.0,
+        batch_correction: bool = False,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
 
@@ -405,6 +579,18 @@ class SCANVI(nn.Module):
 
     # Model
     def model(self, x, y):
+        """
+        Generative model for scANVI.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y : torch.Tensor
+            One-hot encoded conditional labels.
+
+        """
         pyro.module("scanvi", self)
 
         # Inverse dispersions
@@ -513,6 +699,18 @@ class SCANVI(nn.Module):
 
     # Guide
     def guide(self, x, y):
+        """
+        Approximate variational posterior for scANVI.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y : torch.Tensor
+            One-hot encoded conditional labels.
+
+        """
         pyro.module("scanvi", self)
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
@@ -547,7 +745,22 @@ class SCANVI(nn.Module):
 
     # Function to move points between conditions
     @torch.no_grad()
-    def generate(self, x, y_source=None, y_target=None):
+    def generate(self, x, y_source, y_target):
+        """
+        Function used post-training for Supervies-scANVI to facilitate transfer between conditional labels.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y_source : torch.Tensor
+            One-hot encoded conditional labels for the input.
+
+        y_target : torch.Tensor
+            One-hot encoded conditional labels for the targets. Must be the same size in the first dimension as input.
+
+        """
         pyro.module("scanvi", self)
 
         ## Encode
@@ -633,6 +846,21 @@ class SCANVI(nn.Module):
         return x_rec
 
     def get_weights(self):
+        """
+        Returns interpretable coefficients for latents.
+
+        Refer to Notes for details.
+
+
+        Returns
+        -------
+        loc, mu : torch.Tensor
+            Mu of ZINB or Gaussian.
+
+        scale, logits : torch.Tensor
+            Either the variance of the Gaussian or ZI logits for ZINB.
+
+        """
         assert self.reconstruction.endswith("LD")
         match self.reconstruction:
             case "ZINB_LD":
@@ -659,11 +887,34 @@ class SCANVI(nn.Module):
 
     # Save self
     def save(self, path="scanvi_params"):
+        """
+        Saves model parameters to disk.
+
+
+        Parameters
+        ----------
+        path : str, default: "scanvi_params"
+            Path to save model parameters.
+
+        """
         torch.save(self.state_dict(), path + "_torch.pth")
         pyro.get_param_store().save(path + "_pyro.pth")
 
     # Load
     def load(self, path="scanvi_params", map_location=None):
+        """
+        Loads model parameters from disk.
+
+
+        Parameters
+        ----------
+        path : str, default: "scanvi_params"
+            Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
+
+        map_location : str or NoneType, default: None
+            Specifies where the model should be loaded. See `torch.device` for details.
+
+        """
         pyro.clear_param_store()
 
         if map_location is None:
@@ -687,14 +938,74 @@ class SCANVI(nn.Module):
 
 class Patches(nn.Module):
     """
-    Patches
+    Patches, the multi-attribute model.
+
+
+    Parameters
+    ----------
+    num_genes : int
+        Size of the gene space.
+
+    l_loc : float or array-like
+        Either a single value for log-mean library size, or a 1D array-like of values if `batch_correction`.
+
+    l_scale : float or array-like
+        Either a single value for log-variance library size, or a 1D array-like of values if `batch_correction`.
+
+    num_labels : int
+        Total number of attributes present in the data.
+
+    len_attrs : array-like
+        1D Array-like of `int`. Specifies how many attributes per condition class.
+
+    betas : array-like or NoneType, default: None
+        Scales the adversarial & classifier loss for each condition class. If `None`, defaults to `1`.
+
+    w_loc : array-like, default: [0, 3]
+        Means for the conditionally selected multivariate gaussians to parameterize each `w_k`.
+
+    w_scale : array-like, default: [0.1, 1]
+        Stds for the conditionally selected multivariate gaussians to parameterize each `w_k`.
+
+    w_dim : int, default: 2
+        Size of each `w_k` for the attributes.
+
+    latent_dim : int
+        Size of the latent variable `z`.
+
+    num_layers : int, default: 2
+        Number of hidden layers between any input and output layer.
+
+    hidden_dim : int, default: 128
+        Size of the hidden layers throughout the model.
+
+    scale_factor : float, default: 1.0
+        Factor used to scale and normalize the loss.
+
+    batch_correction : bool, default: False
+        If `True`, expects batch to be appended to input and corrects for batch.
+
+    ld_sparsity : bool, default: False
+        If `True`, adds L1 loss for attribute specific latents. Can only be used with linear decoders.
+
+    ld_normalize : bool, default: True
+        If `True`, adds bias term to decoder. Can only be used with linear decoders.
+
+    reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
+        The distribiution assumed to model the input data.
+
+
+
+
+    Notes
+    -----
+    The notes from scVI apply here as well. Additionally, feel free to refer
+    to the tutorials on how to use the model.
+
     """
 
     @staticmethod
     def _concat_lat_dims(labels, ref_list, dim):
-        """
-        Function to organize W prior from labels.
-        """
         idxs = labels.int()
         return (
             torch.tensor(
@@ -719,14 +1030,14 @@ class Patches(nn.Module):
         betas=None,
         w_loc=[0, 3],
         w_scale=[0.1, 1],
-        w_dim=2,
-        latent_dim=10,
-        num_layers=2,
-        hidden_dim=128,
-        scale_factor=1.0,
-        batch_correction=False,
-        ld_sparsity=0,
-        ld_normalize=True,
+        w_dim: int = 2,
+        latent_dim: int = 10,
+        num_layers: int = 2,
+        hidden_dim: int = 128,
+        scale_factor: float = 1.0,
+        batch_correction: bool = False,
+        ld_sparsity: bool = False,
+        ld_normalize: bool = True,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
 
@@ -848,6 +1159,18 @@ class Patches(nn.Module):
 
     # Model
     def model(self, x, y):
+        """
+        Generative model for Patches.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y : torch.Tensor
+            One-hot encoded and concatenated attribute labels.
+
+        """
         pyro.module("patches", self)
 
         theta = pyro.param(
@@ -982,6 +1305,18 @@ class Patches(nn.Module):
 
     # Guide
     def guide(self, x, y):
+        """
+        Approximate variational posterior for Patches.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y : torch.Tensor
+            One-hot encoded and concatenated attribute labels.
+
+        """
         pyro.module("patches", self)
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
@@ -1044,6 +1379,18 @@ class Patches(nn.Module):
 
     # Adverserial
     def adverserial(self, x, y):
+        """
+        Adversarial loss for Patches.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y : torch.Tensor
+            One-hot encoded and concatenated attribute labels.
+
+        """
         pyro.module("patches", self)
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
@@ -1084,6 +1431,21 @@ class Patches(nn.Module):
     # Function to move points between conditions
     @torch.no_grad()
     def generate(self, x, y_source=None, y_target=None):
+        """
+        Function used post-training for Patches to facilitate transfer between conditional labels.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input gene counts.
+
+        y_source : torch.Tensor
+            One-hot encoded and concatenated attribute labels for the input.
+
+        y_target : torch.Tensor
+            One-hot encoded and concatenated attribute labels for the target. Must be the same size in the first dimension as input.
+
+        """
         pyro.module("patches", self)
 
         ## Encode
@@ -1191,6 +1553,21 @@ class Patches(nn.Module):
         return x_rec
 
     def get_weights(self):
+        """
+        Returns interpretable coefficients for latents.
+
+        Refer to Notes for details.
+
+
+        Returns
+        -------
+        loc, mu : torch.Tensor
+            Mu of ZINB or Gaussian.
+
+        scale, logits : torch.Tensor
+            Either the variance of the Gaussian or ZI logits for ZINB.
+
+        """
         assert self.reconstruction.endswith("LD")
         match self.reconstruction:
             case "ZINB_LD":
@@ -1217,11 +1594,34 @@ class Patches(nn.Module):
 
     # Save self
     def save(self, path="patches_params"):
+        """
+        Saves model parameters to disk.
+
+
+        Parameters
+        ----------
+        path : str, default: "patches_params"
+            Path to save model parameters.
+
+        """
         torch.save(self.state_dict(), path + "_torch.pth")
         pyro.get_param_store().save(path + "_pyro.pth")
 
     # Load
     def load(self, path="patches_params", map_location=None):
+        """
+        Loads model parameters from disk.
+
+
+        Parameters
+        ----------
+        path : str, default: "parches_params"
+            Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
+
+        map_location : str or NoneType, default: None
+            Specifies where the model should be loaded. See `torch.device` for details.
+
+        """
         pyro.clear_param_store()
 
         if map_location is None:

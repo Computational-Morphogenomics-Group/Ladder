@@ -1,6 +1,7 @@
-#######################################
-### Functions to download test data ###
-#######################################
+"""
+This module houses the functions that are necessary for tutorials, and for
+those who wish to see what the workflows require in general.
+"""
 
 import os, requests
 from typing import Literal
@@ -44,6 +45,7 @@ def _download_data(
     save_path: str,
     smoke_test: bool,
 ):
+
     ## Good
     if response.status_code == 200 and not smoke_test:
 
@@ -62,7 +64,11 @@ def _download_data(
 
         print(f"Object saved at {save_path}")
 
-    ## Unexpected, means download link broke
+    ## Catch test
+    elif smoke_test:
+        pass
+
+    ## Unexpected
     else:
         raise Exception(f"Object not found at URL for {dataset}")
 
@@ -73,7 +79,22 @@ def get_data(
     smoke_test: bool = False,
 ):
     """
-    Used to fetch data for tutorials.
+    Used to download data for tutorials.
+
+    Parameters
+    ----------
+    dataset : {"Vu", "Ji", "Mascharak"}
+        Specifies which dataset is to be downloaded.
+
+    save_path : str, default: "./data/"
+        Specifies the directory in which the dataset will be saved. Defaults to `./data/`.
+
+    smoke_test : bool, default: False
+        Used when testing to pass through without actually unpacking the response from server.
+
+    Returns
+    -------
+    None
     """
 
     assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"

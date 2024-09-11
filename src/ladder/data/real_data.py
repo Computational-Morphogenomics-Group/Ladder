@@ -1,6 +1,8 @@
-####################################
-### Tools to use with real data ########
-####################################
+"""
+This module houses the functions that are either used separately
+for low-level applications or packaged within the `ladder.scripts.workflows`
+module to be used with the high-level workflows API.
+"""
 
 import torch
 import numpy as np
@@ -14,10 +16,20 @@ import ot
 from sklearn.preprocessing import OrdinalEncoder
 
 
-# Helper to convert between numeric and categorical views of metadata
-# tensor can be a subset of the original metadata tensor
-# metadata should be the full original metadata object at all times to preserve category encoding
 class MetadataConverter:
+    """
+    Class used to convert numerical torch tensors into categorical equivalents.
+
+    Allows mapping of numerical tensors with information that would usually be expected
+    in `AnnData.obs` into categorical equivalent with literals from the original metadata.
+    This class allows for arbitrary subsets of data to be mapped back.
+
+    Parameters
+    ----------
+    metadata : pd.DataFrame
+        The dataframe object that includes the metadata, which is `ad.AnnData.obs` for most cases.
+
+    """
 
     def __init__(self, metadata_df: pd.DataFrame):
 
@@ -68,6 +80,21 @@ class MetadataConverter:
         return np.hstack(stack_list)
 
     def map_to_df(self, met_val_string: torch.Tensor):
+        """
+        The function that actually does the metadata mapping.
+
+        Parameters
+        ----------
+        met_val_string : torch.Tensor
+            Tensor shaped like `utils.TensorDataset`.
+
+        Returns
+        -------
+        metadata_mapping : np.Array
+            Numerical tensor converted back to categorical equivalent.
+
+
+        """
         assert (
             (len(met_val_string.shape) == 2)
             and (met_val_string.shape[1] == self.num_cols)
@@ -76,18 +103,43 @@ class MetadataConverter:
             and (met_val_string.shape[0] == self.num_cols)
         ), "Input doesn't match defined columns in metadata"
 
-        return self._tensor_to_cat(met_val_string)
+        metadata_mapping = self._tensor_to_cat(met_val_string)
+        return metadata_mapping
 
 
-# Helper to convert tuple torch tensors into anndata views for further use
-# tensor tuples are expected as (counts, labels, metadata)
-# the original metadata df is also needed to preserve categories
 class AnndataConverter(MetadataConverter):
+    """
+    Class used to convert tensor datasets into an `ad.AnnData` object.
+
+    This class allows for arbitrary subsets of tensors to be mapped back into
+    an object that looks like the subset of the original object. Inherits
+    `MetadataConverter`.
+
+    Parameters
+    ----------
+    metadata_df : pd.DataFrame
+        The dataframe object that includes the metadata, which is `ad.AnnData.obs` for most cases.
+
+    """
 
     def __init__(self, metadata_df: pd.DataFrame):
         MetadataConverter.__init__(self, metadata_df)
 
     def map_to_anndat(self, val_tup):
+        """
+        Function to actually do the mapping to `ad,AnnData`.
+
+        Parameters
+        ----------
+        val_tup : tuple
+            Size 3 tuple of `torch.Tensor`. The first index is used for counts. The second index
+            provides labels, which are not used here as they are redundant but required for training.
+            The third index provides the numerically encoded metadata.
+
+        Returns
+        -------
+        anndat : ad.AnnData
+        """
 
         # Make object from the counts
         anndat = ad.AnnData(val_tup[0].numpy())
@@ -110,19 +162,21 @@ class AnndataConverter(MetadataConverter):
 
 
 class ConcatTensorDataset(utils.ConcatDataset):
-    r"""
+    """
+    Allows for arbitrary concatenation of `utils.TensorDataset`.
 
     Courtesy of https://github.com/johann-petrak/pytorch/commit/eb70e81e31508c383bdc17059ddb532a6b40468c
-
     ConcatDataset of TensorDatasets which supports getting slices and index lists/arrays.
     This dataset allows the use of slices, e.g. ds[2:4] and of arrays or lists of multiple indices
     if all concatenated datasets are either TensorDatasets or Subset or other ConcatTensorDataset instances
     which eventually contain only TensorDataset instances. If no slicing is needed,
     this class works exactly like torch.utils.data.ConcatDataset and can concatenate arbitrary
     (not just TensorDataset) datasets.
-    Args:
-        datasets (sequence): List of datasets to be concatenated
 
+    Parameters
+    ----------
+        datasets : Iterable[utils.Dataset]
+            List of datasets to be concatenated.
 
     """
 
@@ -226,6 +280,23 @@ def _process_array(arr):
 
 # Simple preprocessing to conver to anndata
 def preprocess_anndata(anndat):
+    """
+    Function to preprocess the input `ad.AnnData` object.
+
+    Does not do any critical modifications, but instead ensures that the numerical
+    columns in `ad.AnnData.obs` are of type `float` and string columns are defined
+    as `pd.CategoricalDtype`.
+
+    Parameters
+    ----------
+    anndat : ad.AnnData
+        The `ad.AnnData` object to be preprocessed.
+
+    Returns
+    -------
+    anndat : ad.AnnData
+        Object after typecasting operations.
+    """
     for colname in anndat.obs:
         if any(isinstance(value, (int, float)) for value in anndat.obs[colname]):
             anndat.obs[colname] = anndat.obs[colname].astype(float)
@@ -236,16 +307,47 @@ def preprocess_anndata(anndat):
     return anndat
 
 
-# Helper to get dataset for CVAE models
-
-
 def construct_labels(
     counts,
     metadata,
     factors,
     style: Literal["concat", "one-hot"] = "concat",
-    batch_key=None,
+    batch_key: str = None,
 ):
+    """
+    Function to generate conditional labels for the various models included.
+
+    Parameters
+    ----------
+    counts
+        The field corresponding to `ad.AnnData.X`.
+
+    metadata
+        The field corresponding to `ad.AnnData.obs`
+
+    factors : array_like
+        1D Array-like of `str`. The list specifying factors, which are names of the columns from `ad.AnnData.obs`.
+
+    style : {'concat', 'one-hot'}
+        Specifies the label encoding.
+
+    batch_key : str or NoneType, default: None
+        Specifies the batch key, must be included in `ad.AnnData.obs`
+
+
+
+    Returns
+    -------
+    dataset : utils.TensorDataset
+        The dataset object to be used downstream.
+
+    levels : dict
+        A mapping between the literal combinations of `factors` and their numerical equivalents.
+
+    converter : AnndataConverter
+        The converter object with the associated dataset.
+
+    """
 
     # Small checks for batch and sparsity
     assert batch_key not in factors, "Batch should not be specified as factor"
@@ -342,15 +444,67 @@ def construct_labels(
 
 # Helper to go from dataset to train-test split loaders
 def distrib_dataset(
-    dataset,
-    levels,
+    dataset: utils.TensorDataset,
+    levels: dict,
     split_pcts=[0.8, 0.2],
     batch_size=128,
     keep_train=None,
     keep_test=None,
-    batch_key=None,
+    batch_key: str = None,
     **kwargs,
 ):
+    """
+    Function that distributes the `utils.TensorDataset` generated by `construct_labels`.
+
+    Parameters
+    ----------
+    dataset : utils.TensorDataset
+        The `dataset` output from `construct_labels`.
+
+    levels : dict
+        The `levels` output from `construct_labels`.
+
+    split_pcts : array_like
+        Size 2 list of `float` specifying the proportions for training and test respectively. Ignored if both `keep_train` and `keep_test` are not `None`.
+
+    batch_size : int
+        Mini-batch size for the models to train on.
+
+    keep_train : array_like
+        1D Array-like of `str`. Specifies the levels to keep in the training dataset. Elements must be from `levels.keys()`.
+
+    keep_test : array_like
+        1D Array-like of `str`. Specifies the levels to keep in the test dataset. Elements must be from `levels.keys()`.
+
+    batch_key : str or NoneType, default: None
+        Must not be `None` if `batch_key` was previously provided to `construct_labels`. The actual values is unimportant for this scope.
+
+    **kwargs : dict, optional
+        Keyword arguments passed to `utils.DataLoader`.
+
+
+
+    Returns
+    -------
+    train_set : utils.TensorDataset or ConcatTensorDataset
+        The full training set to be used downstream.
+
+    test_set : utils.TensorDataset or ConcatTensorDataset
+        The full test set to be used downstream.
+
+    train_loader : utils.DataLoader
+        The corresponding loader for `train_set`.
+
+    train_loader : utils.DataLoader
+         The corresponding loader for `test_set`.
+
+    l_mean : float or array_like
+        If `batch_key is not None`, the empirical library size log-mean for each batch (1-D Array-like of `float`). A single value otherwise.
+
+    l_scale : float or array_like
+        If `batch_key is not None`, then the empirical library size log-variance for each batch (1-D Array-like of `float`). A single value otherwise.
+
+    """
 
     inv_levels = {v: k for k, v in levels.items()}  # Inverse levels required
 
@@ -395,94 +549,3 @@ def distrib_dataset(
         )
 
     return train_set, test_set, train_loader, test_loader, l_mean, l_scale
-
-
-# Helper to train linear regression with optional matchings
-def make_lin_reg_data(
-    counts,
-    metadata,
-    split_factor,
-    labels,
-    source_groups,
-    target_groups,
-    batch_size=128,
-    split_pcts=[0.8, 0.2],
-    matchings: Literal["random", "ot"] = "random",
-):
-
-    # Densify
-    counts = _process_array(counts)
-
-    sources, targets = [], []
-
-    for lab in metadata[labels].cat.categories:
-        lab_locs = np.where(
-            metadata.index.isin(metadata[metadata[labels] == lab].index)
-        )
-        sub_metadata, sub_counts = metadata.iloc[lab_locs], counts[lab_locs]
-
-        locs_source, locs_target = np.where(
-            sub_metadata.index.isin(
-                [
-                    x
-                    for xs in [
-                        list(
-                            sub_metadata.groupby("factors", observed=True)
-                            .get_group(group_name)
-                            .index
-                        )
-                        for group_name in source_groups
-                    ]
-                    for x in xs
-                ]
-            )
-        ), np.where(
-            sub_metadata.index.isin(
-                [
-                    x
-                    for xs in [
-                        list(
-                            sub_metadata.groupby("factors", observed=True)
-                            .get_group(group_name)
-                            .index
-                        )
-                        for group_name in target_groups
-                    ]
-                    for x in xs
-                ]
-            )
-        )
-
-        x, y = sub_counts[locs_source], sub_counts[locs_target]
-
-        match matchings:
-            case "random":
-                y = torch.from_numpy(
-                    y[np.random.choice(y.shape[0], x.shape[0], replace=True)]
-                ).double()
-
-            case "ot":
-                # Set up basic ot
-                a, b = (
-                    np.ones((x.shape[0],)) / x.shape[0],
-                    np.ones((y.shape[0],)) / y.shape[0],
-                )
-                M = ot.dist(x, y, metric="correlation")
-                Gs = ot.sinkhorn(a, b, M, 1e-1)
-
-                idxs = [row.argmax() for row in Gs]
-                y = torch.from_numpy(y[idxs]).double()
-
-        x = torch.from_numpy(x).double()
-        sources.append(x)
-        targets.append(y)
-
-    x, y = torch.vstack(sources), torch.vstack(targets)
-
-    dataset = utils.TensorDataset(x, y)
-    train_set, test_set = utils.random_split(dataset, split_pcts)
-    train_loader, test_loader = utils.DataLoader(
-        train_set, num_workers=4, batch_size=batch_size, shuffle=True
-    ), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
-
-    return train_set, test_set, train_loader, test_loader

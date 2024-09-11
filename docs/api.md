@@ -3,36 +3,35 @@
 ## Preprocessing
 
 ```{eval-rst}
-.. module:: Ladder.pp
-.. currentmodule:: Ladder
+.. module:: ladder.data
+.. currentmodule:: ladder
 
 .. autosummary::
     :toctree: generated
 
-    pp.basic_preproc
+    data.get_data
 ```
 
-## Tools
+## Models
 
 ```{eval-rst}
-.. module:: Ladder.tl
-.. currentmodule:: Ladder
+.. module:: ladder.models
+.. currentmodule:: ladder
 
 .. autosummary::
     :toctree: generated
 
-    tl.basic_tool
+    models.Patches
 ```
 
-## Plotting
+## Workflows
 
 ```{eval-rst}
-.. module:: Ladder.pl
-.. currentmodule:: Ladder
+.. module:: ladder.scripts
+.. currentmodule:: ladder
 
 .. autosummary::
     :toctree: generated
 
-    pl.basic_plot
-    pl.BasicClass
+    scripts.BaseWorkflow
 ```
