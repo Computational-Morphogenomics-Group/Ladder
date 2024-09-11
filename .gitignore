@@ -25,6 +25,10 @@ docs/*data/*
 docs/*params/*
 /params/
 
+# Plots
+/plots/
+docs/*plots*
+
 # ipynb checkpoints if generated anywhere
 *ipynb_checkpoints*
 
