@@ -7,4 +7,4 @@ from .real_data import (
     make_lin_reg_data,
 )
 
-from .builtin_data import get_data, get_params
+from .builtin_data import get_data

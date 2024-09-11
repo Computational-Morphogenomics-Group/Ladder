@@ -8,8 +8,18 @@ from tqdm import tqdm
 
 # Static data paths, update when necessary
 DATA_PATHS = {
-    "Vu": "https://drive.google.com/uc?export=download&id=1quCP3403hOPG5Q8cy1KWZui_a0mJrQ5J",
-    "Ji": "https://drive.google.com/uc?export=download&id=1QVjRyZmMArI0ex0NvpJcAvTxvt8JgbwA",
+    "Vu": [
+        "https://drive.google.com/uc?export=download&id=1quCP3403hOPG5Q8cy1KWZui_a0mJrQ5J",
+        "vu_2022_ay_wh.h5ad",
+    ],
+    "Ji": [
+        "https://drive.google.com/uc?export=download&id=1QVjRyZmMArI0ex0NvpJcAvTxvt8JgbwA",
+        "ji_2020_tumor_ct.h5ad",
+    ],
+    "Mascharak": [
+        "https://drive.google.com/uc?export=download&id=1EEUefuOWAXo5pgSEgMTsfIGT2ik64pJN",
+        "mascharak_2022_tn_wh.h5ad",
+    ],
 }
 
 # Static parameter paths, update when necessary
@@ -58,45 +68,21 @@ def _download_data(
 
 
 def get_data(
-    dataset: Literal["Vu", "Ji"],
-    save_path: str = "./data/vu_2022_ay_wh.h5ad",
+    dataset: Literal["Vu", "Ji", "Mascharak"],
+    save_path: str = "./data/",
     smoke_test: bool = False,
 ):
     """
-    Used to fetch Vu (2022, 10.1016/j.celrep.2022.111155) data for tutorials.
+    Used to fetch data for tutorials.
     """
 
     assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"
 
+    # Reorganize param paths
+    save_path = save_path + DATA_PATHS[dataset][1]
+
     # Send download request
-    response = requests.get(DATA_PATHS[dataset], allow_redirects=True)
+    response = requests.get(DATA_PATHS[dataset][0], allow_redirects=True)
 
     # Get and process response
     _download_data(response, save_path, smoke_test)
-
-
-def get_params(
-    params: Literal["SCVI", "SCANVI", "Patches"],
-    save_path: str = "./params/",
-    smoke_test: bool = False,
-):
-    """
-    Used to fetch the parameters for reproducibility in case retraining is not desired.
-    """
-
-    assert params in PARAM_PATHS.keys(), f"No link found for {params}"
-
-    # Reorganize param paths
-    save_path_torch, save_path_pyro = (
-        save_path + f"{params}_reprod_torch.pth",
-        save_path + f"{params}_reprod_pyro.pth",
-    )
-
-    # Get requests
-    response_torch, response_pyro = requests.get(
-        PARAM_PATHS[params][0], allow_redirects=True
-    ), requests.get(PARAM_PATHS[params][1], allow_redirects=True)
-
-    # Download the data
-    _download_data(response_torch, save_path_torch, smoke_test)
-    _download_data(response_pyro, save_path_pyro, smoke_test)

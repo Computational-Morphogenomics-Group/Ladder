@@ -320,7 +320,7 @@ Model: {self.model_type}
         self,
         max_epochs: int = 1500,
         convergence_threshold: float = 1e-3,
-        convergence_window: int = 15,
+        convergence_window: int = 30,
         classifier_warmup: int = 0,
         params_save_path: str = None,
     ):
