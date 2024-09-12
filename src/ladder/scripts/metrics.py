@@ -337,7 +337,7 @@ def get_reproduction_error(
             mean_profile = get_normalized_profile(
                 point_dataset, target=target, batched=batched
             )
-            preds_mean_error, preds_mean_var = _metric_func(
+            preds_mean_error, preds_var_error = _metric_func(
                 pred_profiles, mean_profile, **kwargs
             )
 
