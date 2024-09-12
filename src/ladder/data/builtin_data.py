@@ -1,5 +1,4 @@
-"""
-The builtin_data module houses the functions that are necessary for tutorials.
+"""The builtin_data module houses the functions that are necessary for tutorials.
 
 The data provided in this module are needed for specific tutorials, and
 are a good place to start when learning the modules.
@@ -80,8 +79,7 @@ def get_data(
     save_path: str = "./data/",
     smoke_test: bool = False,
 ):
-    """
-    Used to download data for tutorials.
+    """Used to download data for tutorials.
 
     Parameters
     ----------
@@ -93,7 +91,6 @@ def get_data(
 
     smoke_test : bool, default: False
         Used when testing to pass through without actually unpacking the response from server.
-
     """
     assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"
 

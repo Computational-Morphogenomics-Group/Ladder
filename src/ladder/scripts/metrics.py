@@ -1,5 +1,4 @@
-"""
-The metrics module houses functions for evaluation.
+"""The metrics module houses functions for evaluation.
 
 The functions here are used to assess latent space conditional
 mixing / separation and generative accuracy for point clouds.
@@ -125,8 +124,7 @@ def get_normalized_profile(
     lib_size: float = 1e4,
     batched: bool = False,
 ):
-    """
-    Used to get library-size normalized pseudobulk profile from group of cells.
+    """Used to get library-size normalized pseudobulk profile from group of cells.
 
     The normalized profile can then be compared to other profiles through RMSE
     or Pearson Correlation. Note that we cannot do this with the original data points
@@ -173,8 +171,7 @@ def gen_profile_reproduction(
     verbose: bool = False,
     use_cuda: bool = False,
 ):
-    """
-    Used to generate new points by performing a full pass through the models.
+    """Used to generate new points by performing a full pass through the models.
 
     The points and their normalized profiles are logged for each generation, up to the
     number of `n_trials`. If `source` and `target` are provided, performs a transfer. Otherwise
@@ -205,9 +202,6 @@ def gen_profile_reproduction(
 
     use_cuda : bool, default: False
         If `True`, attempts to use CUDA device for the generative process.
-
-
-
 
     Returns
     -------
@@ -267,8 +261,7 @@ def get_reproduction_error(
     batched: bool = False,
     **kwargs,
 ):
-    """
-    Calculates the model generative error for the given metric.
+    """Calculates the model generative error for the given metric.
 
     Wraps around `gen_profile_reproduction` with the `_metric_func`
     corresponding to the chosen metric.
@@ -301,9 +294,6 @@ def get_reproduction_error(
 
     **kwargs : dict, optional
         Additional keyword arguments to be passed to `gen_profile_reproduction`.
-
-
-
 
     Returns
     -------
@@ -386,8 +376,7 @@ def _prep_label_data(anndata: ad.AnnData, test_for: str, embed: str):
 
 # KNN Classifier Error with euclidean distance
 def knn_error(anndata: ad.AnnData, test_for: str, embed: str, n_neighbors=30):
-    """
-    Calculates KNN classifier accuracy on embeddings.
+    """Calculates KNN classifier accuracy on embeddings.
 
     Trains a KNN classifier on `test_for` using the embeddings `embed`.
 
@@ -404,7 +393,6 @@ def knn_error(anndata: ad.AnnData, test_for: str, embed: str, n_neighbors=30):
 
     n_neighbors : int, default: 30
         K for the KNN classifier.
-
 
     Returns
     -------
@@ -438,8 +426,7 @@ def _run_k_means(anndata: ad.AnnData, test_for: str, embed: str):
 
 
 def kmeans_nmi(anndata: ad.AnnData, test_for: str, embed: str):
-    """
-    Calculates the K-Means NMI for latent representations.
+    """Calculates the K-Means NMI for latent representations.
 
     The K-Means clustering in the latents is compared with the labels
     originally appearing in `anndata`.
@@ -454,7 +441,6 @@ def kmeans_nmi(anndata: ad.AnnData, test_for: str, embed: str):
 
     embed : str
         Key in `anndata.obsm` pointing to the embeddings to run K-Means with.
-
 
     Returns
     -------
@@ -467,8 +453,7 @@ def kmeans_nmi(anndata: ad.AnnData, test_for: str, embed: str):
 
 
 def kmeans_ari(anndata: ad.AnnData, test_for: str, embed: str):
-    """
-    Calculates the K-Means ARI for latent representations.
+    """Calculates the K-Means ARI for latent representations.
 
     The K-Means clustering in the latents is compared with the labels
     originally appearing in `anndata`.
@@ -484,7 +469,6 @@ def kmeans_ari(anndata: ad.AnnData, test_for: str, embed: str):
     embed : str
         Key in `anndata.obsm` pointing to the embeddings to run K-Means with.
 
-
     Returns
     -------
     float
@@ -496,8 +480,7 @@ def kmeans_ari(anndata: ad.AnnData, test_for: str, embed: str):
 
 
 def calc_asw(anndata: ad.AnnData, test_for: str, embed: str):
-    """
-    Calculates the normalized Average Silhouette Width (ASW)
+    """Calculates the normalized Average Silhouette Width (ASW)
 
     Courtesy of scib (2021, 10.1038/s41592-021-01336-8)
     Source: https://github.com/theislab/scib/blob/main/scib/metrics/silhouette.py
@@ -513,12 +496,10 @@ def calc_asw(anndata: ad.AnnData, test_for: str, embed: str):
     embed : str
         Key in `anndata.obsm` pointing to the embeddings to run K-Means with.
 
-
     Returns
     -------
     float
         Average Silhouette Width normalized to the range [0,1].
-
     """
     # Prep data
     X, y = _prep_label_data(anndata, test_for, embed)

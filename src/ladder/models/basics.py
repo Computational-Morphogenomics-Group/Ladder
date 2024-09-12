@@ -1,5 +1,4 @@
-"""
-The basics module houses the private methods generally used for model definitions.
+"""The basics module houses the private methods generally used for model definitions.
 
 Although all methods are intended to be private, we provide documentation
 for those who would like to construct their own models using these helpers.
@@ -14,8 +13,7 @@ from torch.nn.functional import softmax, softplus
 
 
 def _split_in_half(t):
-    """
-    Function to split a tensor in half.
+    """Function to split a tensor in half.
 
     Courtesy of:  https://pyro.ai/examples/scanvi.html
 
@@ -24,12 +22,10 @@ def _split_in_half(t):
     t : torch.Tensor
         Tensor to be split
 
-
     Returns
     -------
     ts : tuple
         Size 2 tuple of tensors that are the halves of the original `torch.Tensor`.
-
     """
     return t.reshape(t.shape[:-1] + (2, -1)).unbind(-2)
 
@@ -45,12 +41,10 @@ def _broadcast_inputs(input_args):
     input_args : array-like
         Array-like of `torch.Tensor` to broadcast.
 
-
     Returns
     -------
     input_args : array-like
         Array-like of `torch.Tensor` that includes broadcasted tensors.
-
     """
     shape = broadcast_shape(*[s.shape[:-1] for s in input_args]) + (-1,)
     input_args = [s.expand(shape) for s in input_args]
@@ -67,7 +61,6 @@ def _make_fc(dims):
     ----------
     dims : array-like
         Array-like of `int` specifying the sizes for layers. `dims[0], dims[-1]` are input and output respectively.
-
 
     Returns
     -------
@@ -106,7 +99,6 @@ class _make_func(nn.Module):
 
     dist_config : {"normal", "zinb", "categorical", "+lognormal", "classifier"}, default: "normal"
         The distribution for the parameter that corresponds to the modelled layer.
-
 
     Notes
     -----

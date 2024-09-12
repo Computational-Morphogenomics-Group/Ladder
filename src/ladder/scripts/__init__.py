@@ -9,4 +9,4 @@ from .metrics import (
 )
 from .training import get_device, train_pyro, train_pyro_disjoint_param
 from .visuals import _plot_loss
-from .workflows import CrossConditionWorkflow, InterpretableWorkflow
+from .workflows import BaseWorkflow, CrossConditionWorkflow, InterpretableWorkflow

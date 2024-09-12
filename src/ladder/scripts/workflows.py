@@ -1,5 +1,4 @@
-"""
-The workflows module houses the workflow API.
+"""The workflows module houses the workflow API.
 
 The workflow API is intended as a high-level API for users to
 generally apply the models included in `ladder` to their datasets.
@@ -25,8 +24,7 @@ warnings.simplefilter("always", UserWarning)
 
 
 class BaseWorkflow:
-    """
-    Base class for all workflows.
+    """Base class for all workflows.
 
     Offers a high-level API that does not require running blocks of
     code in quick succession, as the process for each dataset is more or
@@ -47,7 +45,6 @@ class BaseWorkflow:
 
     random_seed : int, optional
         If given, seeds the internal modules with the value.
-
 
     Attributes
     ----------
@@ -131,7 +128,6 @@ class BaseWorkflow:
 
     w_dim : int or NoneType
         Size of conditional latents, only defined for Patches.
-
 
     Methods
     -------
@@ -367,8 +363,7 @@ Model: {self.model_type}
         model_args: dict = None,
         optim_args: dict = None,
     ):
-        """
-        Prepares the model to be run.
+        """Prepares the model to be run.
 
         The choice of model implicitly decides the kind of condition encodings
         to use, so there is no need to have a separate data preparation.
@@ -395,7 +390,6 @@ Model: {self.model_type}
 
         optim_args : dict
             Optimizer arguments passed to low-level trainer. See `scripts` for details.
-
         """
         # Flush params if needed
         pyro.clear_param_store()
@@ -487,8 +481,7 @@ Model: {self.model_type}
         classifier_warmup: int = 0,
         params_save_path: str = None,
     ):
-        """
-        Runs the model on the attached data object.
+        """Runs the model on the attached data object.
 
         Parameters
         ----------
@@ -562,34 +555,29 @@ Model: {self.model_type}
             self.model.save(params_save_path)
 
     def save_model(self, params_save_path: str):
-        """
-        Saves the attached model.
+        """Saves the attached model.
 
         Parameters
         ----------
         params_save_path : str
             Path to save model parameters. Expects only the name without extensions.
-
         """
         self.model.save(params_save_path)
 
     def load_model(self, params_load_path: str):
-        """
-        Loads parameters for the attached model. Needs `prep_model` to be run first.
+        """Loads parameters for the attached model. Needs `prep_model` to be run first.
 
         Parameters
         ----------
         params_load_path : str
             Path to find model parameters. Expects only the shared prefix, and not the trailing "_torch.pth" or "_pyro.pth".
-
         """
         self.model.load(params_load_path)
         self.model = self.model.eval().cpu().double()
         self.predictive = pyro.infer.Predictive(self.model.generate, num_samples=1)
 
     def plot_loss(self, save_loss_path: str = None):
-        """
-        Simple plotter for loss functions.
+        """Simple plotter for loss functions.
 
         Parameters
         ----------
@@ -601,8 +589,7 @@ Model: {self.model_type}
         )
 
     def write_embeddings(self):
-        """
-        Places the calculated cell embeddings from the trained model under the corresponding `anndata.obsm` field.
+        """Places the calculated cell embeddings from the trained model under the corresponding `anndata.obsm` field.
 
         Each model has a separate name for their respective latent, so that more than a
         single workflow running on the same object instance does not overwrite info.
@@ -672,8 +659,7 @@ Model: {self.model_type}
     def evaluate_reconstruction(
         self, subset: str = None, cell_type: str = None, n_iter: int = 5
     ):
-        """
-        Evaluates the quality of reconstructions with generative metrics.
+        """Evaluates the quality of reconstructions with generative metrics.
 
         Parameters
         ----------
@@ -685,7 +671,6 @@ Model: {self.model_type}
 
         n_iter : int, default: 5
             Number of times to repeat the generative process.
-
         """
         printer = []
         source, target = None, None
@@ -728,14 +713,12 @@ Model: {self.model_type}
             print(item)
 
     def evaluate_separability(self, factor: str = None):
-        """
-        Evaluates the separability of latent embeddings for conditions.
+        """Evaluates the separability of latent embeddings for conditions.
 
         Parameters
         ----------
         factor : str, optional
             Item listed in `factors`. If not provided, the metrics will be evaluated on the combinations of factors.
-
         """
         # Make sure factor is in factors or not provided
         assert factor is None or factor in self.factors
@@ -777,8 +760,7 @@ Model: {self.model_type}
 
 
 class InterpretableWorkflow(BaseWorkflow):
-    """
-    Interpretable workflow for training with a linear decoder.
+    """Interpretable workflow for training with a linear decoder.
 
     Inherits `BaseWorkflow` and adds functionalities desired from
     running the interpretable models with linear decoders.
@@ -801,8 +783,6 @@ class InterpretableWorkflow(BaseWorkflow):
 
     get_common_loadings
         Writes non-conditional gene loadings to `anndata.var`.
-
-
     """
 
     # Constructor
@@ -818,8 +798,7 @@ class InterpretableWorkflow(BaseWorkflow):
         )
 
     def get_conditional_loadings(self):
-        """
-        Writes attribute specific gene loadings to `anndata.var`.
+        """Writes attribute specific gene loadings to `anndata.var`.
 
         Only to be used with Patches, as the other models do not offer
         an attribute-specific way to learn coefficients.
@@ -850,8 +829,7 @@ class InterpretableWorkflow(BaseWorkflow):
             print("Written condition specific loadings to 'self.anndata.var'.")
 
     def get_common_loadings(self):
-        """
-        Writes non-conditional gene loadings to `anndata.var`.
+        """Writes non-conditional gene loadings to `anndata.var`.
 
         Can be used with all models.
         """
@@ -869,8 +847,7 @@ class InterpretableWorkflow(BaseWorkflow):
 
 
 class CrossConditionWorkflow(BaseWorkflow):
-    """
-    Cross-condition workflow for training with a non-linear decoder.
+    """Cross-condition workflow for training with a non-linear decoder.
 
     Inherits `BaseWorkflow` and adds functionalities desired from
     running a cross-conditional model for more precise reconstructions
@@ -909,8 +886,7 @@ class CrossConditionWorkflow(BaseWorkflow):
     def evaluate_transfer(
         self, source: str, target: str, cell_type: str = None, n_iter: int = 10
     ):
-        """
-        Evaluates the quality of transfers with generative metrics.
+        """Evaluates the quality of transfers with generative metrics.
 
         Parameters
         ----------
@@ -925,7 +901,6 @@ class CrossConditionWorkflow(BaseWorkflow):
 
         n_iter : int, default: 10
             Number of times to repeat the generative process.
-
         """
         printer = []
 

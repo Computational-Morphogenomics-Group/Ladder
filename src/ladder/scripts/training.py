@@ -1,5 +1,4 @@
-"""
-The training module includes the functions used to train the models.
+"""The training module includes the functions used to train the models.
 
 The functions defined here can be run independently for low-level
 specific applications, or through the workflows API for high-level
@@ -19,8 +18,7 @@ from tqdm import tqdm
 
 # Helper to get device
 def get_device():
-    """
-    Prints currently used device.
+    """Prints currently used device.
 
     Returns
     -------
@@ -42,8 +40,7 @@ def train_pyro(
     device: torch.device = get_device(),
     optim_args: dict = None,
 ):
-    """
-    Runner for basic Pyro models.
+    """Runner for basic Pyro models.
 
     Trains up to `num_epochs` or until a new minimum is not attained
     that is lower than the older minimum by `convergence_threshold` for
@@ -77,7 +74,6 @@ def train_pyro(
 
     optim_args : dict, default: {"optimizer": opt.Adam,"optim_args": {"lr": 1e-3, "eps": 1e-2},"gamma": 1,"milestones": [1e10]}
         Arguments to be passed to `MultiStepLR` for fine tuning if needed.
-
 
     Returns
     -------
@@ -166,11 +162,10 @@ def train_pyro_disjoint_param(
     device: torch.device = get_device(),
     lr: float = 1e-2,
     eps: float = 1e-2,
-    betas: tuple(float, float) = (0.90, 0.999),
+    betas: tuple = (0.90, 0.999),
     warmup: int = 0,
 ):
-    """
-    Runner for Patches, but can be used for other adversarial models.
+    """Runner for Patches, but can be used for other adversarial models.
 
     Trains up to `num_epochs` or until a new minimum is not attained
     that is lower than the older minimum by `convergence_threshold` for
@@ -209,12 +204,11 @@ def train_pyro_disjoint_param(
     eps : float, default: 1e-2
         Eps to be passed to the Adam optimizer.
 
-    betas : tuple(float,float), default: (0.90, 0.999)
+    betas : tuple, default: (0.90, 0.999)
         Betas to be passed to the Adam optimizer.
 
     warmup : int, default: 0
         Number of epochs to run the classifier before running the entire model.
-
 
     Returns
     -------

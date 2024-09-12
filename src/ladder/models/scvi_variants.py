@@ -1,5 +1,4 @@
-"""
-The scvi_variants module houses the model definitions that are based on the scVI (https://www.nature.com/articles/s41592-018-0229-2) skeleton.
+"""The scvi_variants module houses the model definitions that are based on the scVI (https://www.nature.com/articles/s41592-018-0229-2) skeleton.
 
 All model implementations are available through Pyro.
 """
@@ -26,8 +25,7 @@ from .basics import _broadcast_inputs, _make_func, _split_in_half
 
 
 class SCVI(nn.Module):
-    r"""
-    scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through `Pyro`.
+    r"""scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through `Pyro`.
 
     Parameters
     ----------
@@ -57,18 +55,6 @@ class SCVI(nn.Module):
 
     reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
         The distribiution assumed to model the input data.
-
-
-
-
-    Notes
-    -----
-    The 'LD' (https://academic.oup.com/bioinformatics/article/36/11/3418/5807606) variants
-    for `reconstruction` are used in interpretable modules. We recommend setting the `scale_factor`
-    as :
-
-    .. math:: \frac{1}{\text{batch_size} * \text{num_genes}}
-
     """
 
     def __init__(
@@ -133,8 +119,7 @@ class SCVI(nn.Module):
 
     # Model
     def model(self, x, y=None):
-        """
-        Generative model for scVI.
+        """Generative model for scVI.
 
         Parameters
         ----------
@@ -143,7 +128,6 @@ class SCVI(nn.Module):
 
         y : torch.Tensor, optional
             Not used in a meaningful way, kept for compatibility.
-
         """
         pyro.module("scvi", self)
 
@@ -234,8 +218,7 @@ class SCVI(nn.Module):
 
     # Guide
     def guide(self, x, y=None):
-        """
-        Approximate variational posteriorfor scVI.
+        """Approximate variational posteriorfor scVI.
 
         Parameters
         ----------
@@ -244,7 +227,6 @@ class SCVI(nn.Module):
 
         y : torch.Tensor, optional
             Not used in a meaningful way, kept for compatibility.
-
         """
         pyro.module("scvi", self)
 
@@ -257,8 +239,7 @@ class SCVI(nn.Module):
 
     # Generate
     def generate(self, x, y_source=None, y_target=None):
-        """
-        Function used post-training for Oracle-scVI to facilitate transfer between conditional labels.
+        """Function used post-training for Oracle-scVI to facilitate transfer between conditional labels.
 
         Parameters
         ----------
@@ -276,7 +257,6 @@ class SCVI(nn.Module):
         -------
         x_rec : torch.Tensor
             Reconstructed gene counts.
-
         """
         pyro.module("scvi", self)
 
@@ -337,11 +317,9 @@ class SCVI(nn.Module):
 
     # Get linear weights if LD
     def get_weights(self):
-        """
-        Returns interpretable coefficients for latents.
+        """Returns interpretable coefficients for latents.
 
         Refer to Notes for details.
-
 
         Returns
         -------
@@ -350,7 +328,6 @@ class SCVI(nn.Module):
 
         scale, logits : torch.Tensor
             Either the variance of the Gaussian or ZI logits for ZINB.
-
         """
         assert self.reconstruction.endswith("LD")
         match self.reconstruction:
@@ -378,22 +355,19 @@ class SCVI(nn.Module):
 
     # Save self
     def save(self, path="scvi_params"):
-        """
-        Saves model parameters to disk.
+        """Saves model parameters to disk.
 
         Parameters
         ----------
         path : str, default: "scvi_params"
             Path to save model parameters.
-
         """
         torch.save(self.state_dict(), path + "_torch.pth")
         pyro.get_param_store().save(path + "_pyro.pth")
 
     # Load
     def load(self, path="scvi_params", map_location=None):
-        """
-        Loads model parameters from disk.
+        """Loads model parameters from disk.
 
         Parameters
         ----------
@@ -402,7 +376,6 @@ class SCVI(nn.Module):
 
         map_location : str, optional
             Specifies where the model should be loaded. See `torch.device` for details.
-
         """
         pyro.clear_param_store()
 
@@ -427,8 +400,7 @@ class SCVI(nn.Module):
 
 ## scANVI taken from https://pyro.ai/examples/scanvi.html
 class SCANVI(nn.Module):
-    """
-    Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through `Pyro`.
+    """Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through `Pyro`.
 
     Parameters
     ----------
@@ -464,14 +436,6 @@ class SCANVI(nn.Module):
 
     reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
         The distribiution assumed to model the input data.
-
-
-
-
-    Notes
-    -----
-    The notes from scVI apply here as well.
-
     """
 
     def __init__(
@@ -573,8 +537,7 @@ class SCANVI(nn.Module):
 
     # Model
     def model(self, x, y):
-        """
-        Generative model for scANVI.
+        """Generative model for scANVI.
 
         Parameters
         ----------
@@ -583,7 +546,6 @@ class SCANVI(nn.Module):
 
         y : torch.Tensor
             One-hot encoded conditional labels.
-
         """
         pyro.module("scanvi", self)
 
@@ -696,8 +658,7 @@ class SCANVI(nn.Module):
 
     # Guide
     def guide(self, x, y):
-        """
-        Approximate variational posterior for scANVI.
+        """Approximate variational posterior for scANVI.
 
         Parameters
         ----------
@@ -706,7 +667,6 @@ class SCANVI(nn.Module):
 
         y : torch.Tensor
             One-hot encoded conditional labels.
-
         """
         pyro.module("scanvi", self)
 
@@ -742,8 +702,7 @@ class SCANVI(nn.Module):
     # Function to move points between conditions
     @torch.no_grad()
     def generate(self, x, y_source, y_target):
-        """
-        Function used post-training for Supervies-scANVI to facilitate transfer between conditional labels.
+        """Function used post-training for Supervies-scANVI to facilitate transfer between conditional labels.
 
         Parameters
         ----------
@@ -755,7 +714,6 @@ class SCANVI(nn.Module):
 
         y_target : torch.Tensor
             One-hot encoded conditional labels for the targets. Must be the same size in the first dimension as input.
-
         """
         pyro.module("scanvi", self)
 
@@ -842,8 +800,7 @@ class SCANVI(nn.Module):
         return x_rec
 
     def get_weights(self):
-        """
-        Returns interpretable coefficients for latents.
+        """Returns interpretable coefficients for latents.
 
         Refer to Notes for details.
 
@@ -855,7 +812,6 @@ class SCANVI(nn.Module):
 
         scale, logits : torch.Tensor
             Either the variance of the Gaussian or ZI logits for ZINB.
-
         """
         assert self.reconstruction.endswith("LD")
         match self.reconstruction:
@@ -883,22 +839,19 @@ class SCANVI(nn.Module):
 
     # Save self
     def save(self, path="scanvi_params"):
-        """
-        Saves model parameters to disk.
+        """Saves model parameters to disk.
 
         Parameters
         ----------
         path : str, default: "scanvi_params"
             Path to save model parameters.
-
         """
         torch.save(self.state_dict(), path + "_torch.pth")
         pyro.get_param_store().save(path + "_pyro.pth")
 
     # Load
     def load(self, path="scanvi_params", map_location=None):
-        """
-        Loads model parameters from disk.
+        """Loads model parameters from disk.
 
         Parameters
         ----------
@@ -907,7 +860,6 @@ class SCANVI(nn.Module):
 
         map_location : str, optional
             Specifies where the model should be loaded. See `torch.device` for details.
-
         """
         pyro.clear_param_store()
 
@@ -931,8 +883,7 @@ class SCANVI(nn.Module):
 
 
 class Patches(nn.Module):
-    """
-    Patches, the multi-attribute model.
+    """Patches, the multi-attribute model.
 
     Parameters
     ----------
@@ -986,15 +937,6 @@ class Patches(nn.Module):
 
     reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
         The distribiution assumed to model the input data.
-
-
-
-
-    Notes
-    -----
-    The notes from scVI apply here as well. Additionally, feel free to refer
-    to the tutorials on how to use the model.
-
     """
 
     @staticmethod
@@ -1159,8 +1101,7 @@ class Patches(nn.Module):
 
     # Model
     def model(self, x, y):
-        """
-        Generative model for Patches.
+        """Generative model for Patches.
 
         Parameters
         ----------
@@ -1169,7 +1110,6 @@ class Patches(nn.Module):
 
         y : torch.Tensor
             One-hot encoded and concatenated attribute labels.
-
         """
         pyro.module("patches", self)
 
@@ -1308,8 +1248,7 @@ class Patches(nn.Module):
 
     # Guide
     def guide(self, x, y):
-        """
-        Approximate variational posterior for Patches.
+        """Approximate variational posterior for Patches.
 
         Parameters
         ----------
@@ -1318,7 +1257,6 @@ class Patches(nn.Module):
 
         y : torch.Tensor
             One-hot encoded and concatenated attribute labels.
-
         """
         pyro.module("patches", self)
 
@@ -1381,8 +1319,7 @@ class Patches(nn.Module):
 
     # Adverserial
     def adverserial(self, x, y):
-        """
-        Adversarial loss for Patches.
+        """Adversarial loss for Patches.
 
         Parameters
         ----------
@@ -1391,7 +1328,6 @@ class Patches(nn.Module):
 
         y : torch.Tensor
             One-hot encoded and concatenated attribute labels.
-
         """
         pyro.module("patches", self)
 
@@ -1433,8 +1369,7 @@ class Patches(nn.Module):
     # Function to move points between conditions
     @torch.no_grad()
     def generate(self, x, y_source=None, y_target=None):
-        """
-        Function used post-training for Patches to facilitate transfer between conditional labels.
+        """Function used post-training for Patches to facilitate transfer between conditional labels.
 
         Parameters
         ----------
@@ -1446,7 +1381,6 @@ class Patches(nn.Module):
 
         y_target : torch.Tensor
             One-hot encoded and concatenated attribute labels for the target. Must be the same size in the first dimension as input.
-
         """
         pyro.module("patches", self)
 
@@ -1555,8 +1489,7 @@ class Patches(nn.Module):
         return x_rec
 
     def get_weights(self):
-        """
-        Returns interpretable coefficients for latents.
+        """Returns interpretable coefficients for latents.
 
         Refer to Notes for details.
 
@@ -1568,7 +1501,6 @@ class Patches(nn.Module):
 
         scale, logits : torch.Tensor
             Either the variance of the Gaussian or ZI logits for ZINB.
-
         """
         assert self.reconstruction.endswith("LD")
         match self.reconstruction:
@@ -1596,22 +1528,19 @@ class Patches(nn.Module):
 
     # Save self
     def save(self, path="patches_params"):
-        """
-        Saves model parameters to disk.
+        """Saves model parameters to disk.
 
         Parameters
         ----------
         path : str, default: "patches_params"
             Path to save model parameters.
-
         """
         torch.save(self.state_dict(), path + "_torch.pth")
         pyro.get_param_store().save(path + "_pyro.pth")
 
     # Load
     def load(self, path="patches_params", map_location=None):
-        """
-        Loads model parameters from disk.
+        """Loads model parameters from disk.
 
         Parameters
         ----------
@@ -1620,7 +1549,6 @@ class Patches(nn.Module):
 
         map_location : str, optional
             Specifies where the model should be loaded. See `torch.device` for details.
-
         """
         pyro.clear_param_store()
 
