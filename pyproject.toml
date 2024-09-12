@@ -12,7 +12,7 @@ maintainers = [
   { name = "zgr2788", email = "ob2391@columbia.edu" },
 ]
 authors = [
-  { name = "zgr2788" },
+  { name = "Computational Morphogenomics Group" },
 ]
 requires-python = ">=3.10"
 classifiers = [

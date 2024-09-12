@@ -540,7 +540,6 @@ Model: {self.model_type}
                         convergence_window=convergence_window,
                         lr=self.optim_args["lr"],
                         eps=self.optim_args["eps"],
-                        style="joint",
                         warmup=classifier_warmup,
                     )
                 )

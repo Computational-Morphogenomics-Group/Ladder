@@ -1073,7 +1073,7 @@ class Patches(nn.Module):
         self.w_locs = w_loc  # Prior means for attribute being 0,1 (indices correspond to attribute value)
 
         if w_scale is None:
-            w_scale[0.1, 1]
+            w_scale = [0.1, 1]
 
         self.w_scales = w_scale  # Prior scales for attribute being 0,1 (indices correspond to attribute value)
 

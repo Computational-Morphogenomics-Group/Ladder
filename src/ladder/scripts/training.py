@@ -281,9 +281,10 @@ def train_pyro_disjoint_param(
 
         model.train()
 
-        # Classifier trains over dataset
         for x, y, _ in train_loader:
             x, y = x.to(device), y.to(device)
+
+            # Classifier branch
             log_prob_loss = model.adversarial(x, y).mean()
             prob_losses.append(log_prob_loss.detach().cpu())
 
@@ -291,10 +292,8 @@ def train_pyro_disjoint_param(
             log_prob_loss.backward()
             optimizer_c.step()
 
-        # Other parameters also train
-        if epoch + 1 > warmup:
-            for x, y, _ in train_loader:
-                x, y = x.to(device), y.to(device)
+            # Other params branch
+            if epoch + 1 > warmup:
                 loss = loss_fn(model.model, model.guide, x, y)
                 losses.append(loss.detach().cpu())
 
