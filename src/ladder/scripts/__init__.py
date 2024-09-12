@@ -1,12 +1,12 @@
 from .metrics import (
-    get_normalized_profile,
-    gen_profile_reproduction,
-    get_reproduction_error,
-    knn_error,
-    kmeans_nmi,
-    kmeans_ari,
     calc_asw,
+    gen_profile_reproduction,
+    get_normalized_profile,
+    get_reproduction_error,
+    kmeans_ari,
+    kmeans_nmi,
+    knn_error,
 )
 from .training import get_device, train_pyro, train_pyro_disjoint_param
-from .workflows import InterpretableWorkflow, CrossConditionWorkflow
 from .visuals import _plot_loss
+from .workflows import CrossConditionWorkflow, InterpretableWorkflow

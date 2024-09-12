@@ -1,10 +1,14 @@
 """
-This module houses the functions that are necessary for tutorials, and for
-those who wish to see what the workflows require in general.
+The builtin_data module houses the functions that are necessary for tutorials.
+
+The data provided in this module are needed for specific tutorials, and
+are a good place to start when learning the modules.
 """
 
-import os, requests
+import os
 from typing import Literal
+
+import requests
 from tqdm import tqdm
 
 # Static data paths, update when necessary
@@ -45,10 +49,8 @@ def _download_data(
     save_path: str,
     smoke_test: bool,
 ):
-
     ## Good
     if response.status_code == 200 and not smoke_test:
-
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
         # Write with progress bar
@@ -70,7 +72,7 @@ def _download_data(
 
     ## Unexpected
     else:
-        raise Exception(f"Object not found at URL for {dataset}")
+        raise Exception("Object not found at URL")
 
 
 def get_data(
@@ -92,11 +94,7 @@ def get_data(
     smoke_test : bool, default: False
         Used when testing to pass through without actually unpacking the response from server.
 
-    Returns
-    -------
-    None
     """
-
     assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"
 
     # Reorganize param paths

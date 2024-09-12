@@ -1,18 +1,21 @@
 """
-This module houses the functions that are either used separately
-for low-level applications or packaged within the `ladder.scripts.workflows`
-module to be used with the high-level workflows API.
+The real_data module houses the functions to be used with real datasets.
+
+The functions defined here can either be used independently for
+specific low-level applications or through the workflows API for
+high-level, standard applications.
 """
 
-import torch
+from collections.abc import Iterable
+from itertools import chain, product
+from typing import Literal
+
+import anndata as ad
 import numpy as np
 import pandas as pd
+import torch
 import torch.utils.data as utils
-from itertools import combinations, product, permutations, chain
-from typing import Iterable, Literal
-import anndata as ad
-from scipy.sparse import issparse, csr_matrix
-import ot
+from scipy.sparse import issparse
 from sklearn.preprocessing import OrdinalEncoder
 
 
@@ -29,15 +32,22 @@ class MetadataConverter:
     metadata : pd.DataFrame
         The dataframe object that includes the metadata, which is `ad.AnnData.obs` for most cases.
 
+    Attributes
+    ----------
+    df_view : pd.DataFrame
+        Dataframe object for reference.
+
+    num_cols : int
+        Number of columns for `df_view`.
+
+
     """
 
     def __init__(self, metadata_df: pd.DataFrame):
-
         self.df_view = metadata_df
         self.num_cols = metadata_df.shape[1]
 
     def _tensor_to_cat(self, met_val_string: torch.Tensor):
-
         stack_list = []
 
         for i, colname in enumerate(self.df_view):
@@ -51,7 +61,7 @@ class MetadataConverter:
             # Do reverse mapping - also decide again on single multi val
             if (
                 type(self.df_view[colname].dtype)
-                == pd.core.dtypes.dtypes.CategoricalDtype
+                is pd.core.dtypes.dtypes.CategoricalDtype
             ):
                 if len(met_val_string.shape) == 1:
                     stack_list.append(
@@ -139,8 +149,8 @@ class AnndataConverter(MetadataConverter):
         Returns
         -------
         anndat : ad.AnnData
+            The anndata equivalent of the numerical `torch.Tensor` objects.
         """
-
         # Make object from the counts
         anndat = ad.AnnData(val_tup[0].numpy())
 
@@ -150,7 +160,7 @@ class AnndataConverter(MetadataConverter):
 
         # Explicit categorical typecasting to play well with metrics
         for colname in df:
-            if any(isinstance(value, (int, float)) for value in df[colname]):
+            if any(isinstance(value, int | float) for value in df[colname]):
                 df[colname] = df[colname].astype(float)
 
             else:
@@ -181,20 +191,17 @@ class ConcatTensorDataset(utils.ConcatDataset):
     """
 
     def __init__(self, datasets: Iterable[utils.Dataset]) -> None:
-        super(ConcatTensorDataset, self).__init__(datasets)
+        super().__init__(datasets)
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
-            rows = [
-                super(ConcatTensorDataset, self).__getitem__(i)
-                for i in range(self.__len__())[idx]
-            ]
-            return tuple(map(torch.stack, zip(*rows)))
-        elif isinstance(idx, (list, np.ndarray)):
-            rows = [super(ConcatTensorDataset, self).__getitem__(i) for i in idx]
-            return tuple(map(torch.stack, zip(*rows)))
+            rows = [super().__getitem__(i) for i in range(self.__len__())[idx]]
+            return tuple(map(torch.stack, zip(*rows, strict=False)))
+        elif isinstance(idx, list | np.ndarray):
+            rows = [super().__getitem__(i) for i in idx]
+            return tuple(map(torch.stack, zip(*rows, strict=False)))
         else:
-            return super(ConcatTensorDataset, self).__getitem__(idx)
+            return super().__getitem__(idx)
 
 
 ####################################################################################
@@ -242,7 +249,7 @@ def _concat_cat_df(metadata):
     stack_list = []
 
     for colname in metadata:
-        if type(metadata[colname].dtype) == pd.core.dtypes.dtypes.CategoricalDtype:
+        if type(metadata[colname].dtype) is pd.core.dtypes.dtypes.CategoricalDtype:
             stack_list.append(metadata[colname].cat.codes.to_numpy().reshape(-1, 1))
 
         else:
@@ -298,7 +305,7 @@ def preprocess_anndata(anndat):
         Object after typecasting operations.
     """
     for colname in anndat.obs:
-        if any(isinstance(value, (int, float)) for value in anndat.obs[colname]):
+        if any(isinstance(value, int | float) for value in anndat.obs[colname]):
             anndat.obs[colname] = anndat.obs[colname].astype(float)
 
         else:
@@ -331,7 +338,7 @@ def construct_labels(
     style : {'concat', 'one-hot'}
         Specifies the label encoding.
 
-    batch_key : str or NoneType, default: None
+    batch_key : str, optional
         Specifies the batch key, must be included in `ad.AnnData.obs`
 
 
@@ -347,8 +354,10 @@ def construct_labels(
     converter : AnndataConverter
         The converter object with the associated dataset.
 
-    """
+    batch_mapping : dict
+        Returned only if `batch_key` is given. Ordinal encoding for the batch dimension.
 
+    """
     # Small checks for batch and sparsity
     assert batch_key not in factors, "Batch should not be specified as factor"
 
@@ -360,7 +369,6 @@ def construct_labels(
 
     match style:
         case "concat":
-
             factors_list = [
                 torch.from_numpy(
                     pd.get_dummies(metadata[factor]).to_numpy().astype(int)
@@ -446,7 +454,7 @@ def construct_labels(
 def distrib_dataset(
     dataset: utils.TensorDataset,
     levels: dict,
-    split_pcts=[0.8, 0.2],
+    split_pcts=None,
     batch_size=128,
     keep_train=None,
     keep_test=None,
@@ -464,7 +472,7 @@ def distrib_dataset(
     levels : dict
         The `levels` output from `construct_labels`.
 
-    split_pcts : array_like
+    split_pcts : array-like, optional
         Size 2 list of `float` specifying the proportions for training and test respectively. Ignored if both `keep_train` and `keep_test` are not `None`.
 
     batch_size : int
@@ -476,7 +484,7 @@ def distrib_dataset(
     keep_test : array_like
         1D Array-like of `str`. Specifies the levels to keep in the test dataset. Elements must be from `levels.keys()`.
 
-    batch_key : str or NoneType, default: None
+    batch_key : str, optional
         Must not be `None` if `batch_key` was previously provided to `construct_labels`. The actual values is unimportant for this scope.
 
     **kwargs : dict, optional
@@ -495,7 +503,7 @@ def distrib_dataset(
     train_loader : utils.DataLoader
         The corresponding loader for `train_set`.
 
-    train_loader : utils.DataLoader
+    test_loader : utils.DataLoader
          The corresponding loader for `test_set`.
 
     l_mean : float or array_like
@@ -505,15 +513,18 @@ def distrib_dataset(
         If `batch_key is not None`, then the empirical library size log-variance for each batch (1-D Array-like of `float`). A single value otherwise.
 
     """
+    if split_pcts is None:
+        split_pcts = [0.8, 0.2]
 
     inv_levels = {v: k for k, v in levels.items()}  # Inverse levels required
 
     # General training to see how the model fits. USed to evaluate reconstruction or to fit interpretable model with linear decoder.
     if keep_train is None or keep_test is None:
         train_set, test_set = utils.random_split(dataset, split_pcts)
-        train_loader, test_loader = utils.DataLoader(
-            train_set, batch_size=batch_size, shuffle=True, **kwargs
-        ), utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs)
+        train_loader, test_loader = (
+            utils.DataLoader(train_set, batch_size=batch_size, shuffle=True, **kwargs),
+            utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs),
+        )
 
     # Used for transfer of conditions. Train test split is completely manually defined and based on attributes
     else:
@@ -533,9 +544,10 @@ def distrib_dataset(
             ]
         )
 
-        train_loader, test_loader = utils.DataLoader(
-            train_set, batch_size=batch_size, shuffle=True, **kwargs
-        ), utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs)
+        train_loader, test_loader = (
+            utils.DataLoader(train_set, batch_size=batch_size, shuffle=True, **kwargs),
+            utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs),
+        )
 
     # If batch is appended to input, generate size priors per batch
     if batch_key is not None:

@@ -1,5 +1,6 @@
-from . import models, scripts, data
 from importlib.metadata import version
+
+from . import data, models, scripts
 
 __all__ = ["models", "scripts", "data"]
 

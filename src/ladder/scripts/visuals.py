@@ -1,15 +1,10 @@
+"""The visuals module houses the visualizers for workflows."""
+
 import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-import pandas as pd
-import torch
-from umap import UMAP
 
 
+# Visualizer to plot model losses
 def _plot_loss(train_losses, test_losses, save_loss_path: str = None):
-    """
-    Plots loss functions for the workflows.
-    """
     fig, ax = plt.subplots(1, 2, figsize=(10, 5), sharex=True, sharey=True)
     ax[0].plot(train_losses)
     ax[1].plot(test_losses)

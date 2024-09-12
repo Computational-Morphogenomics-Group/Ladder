@@ -1,21 +1,21 @@
 """
-This module houses the model definitions that are mostly based on
-the scVI (https://www.nature.com/articles/s41592-018-0229-2) skeleton.
+The scvi_variants module houses the model definitions that are based on the scVI (https://www.nature.com/articles/s41592-018-0229-2) skeleton.
+
+All model implementations are available through Pyro.
 """
-
-import torch
-import torch.nn as nn
-from torch.distributions import constraints
-
-import pyro
-import pyro.distributions as dist
-import pyro.poutine as poutine
 
 from typing import Literal
 
-from .basics import _broadcast_inputs, _make_func, _split_in_half
-from torch.nn.functional import softplus, softmax
 import numpy as np
+import pyro
+import pyro.distributions as dist
+import pyro.poutine as poutine
+import torch
+import torch.nn as nn
+from torch.distributions import constraints
+from torch.nn.functional import softmax, softplus
+
+from .basics import _broadcast_inputs, _make_func, _split_in_half
 
 # ================================================================================================
 # ================================================================================================
@@ -26,9 +26,8 @@ import numpy as np
 
 
 class SCVI(nn.Module):
-    """
+    r"""
     scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through `Pyro`.
-
 
     Parameters
     ----------
@@ -84,7 +83,6 @@ class SCVI(nn.Module):
         batch_correction: bool = False,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
-
         # Init params & hyperparams
         self.scale_factor = scale_factor
         self.num_genes = num_genes
@@ -94,7 +92,7 @@ class SCVI(nn.Module):
         self.batch_correction = batch_correction  # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction
 
-        super(SCVI, self).__init__()
+        super().__init__()
 
         # Setup NN functions
         match self.reconstruction:
@@ -143,7 +141,7 @@ class SCVI(nn.Module):
         x : torch.Tensor
             Input gene counts.
 
-        y : torch.Tensor or NoneType, default: None
+        y : torch.Tensor, optional
             Not used in a meaningful way, kept for compatibility.
 
         """
@@ -164,14 +162,17 @@ class SCVI(nn.Module):
 
             # If batch correction, pick corresponding loc scale
             if self.batch_correction:
-                l_loc, l_scale = torch.tensor(
-                    self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
-                ).reshape(-1, 1).to(x.device), torch.tensor(
-                    self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
-                ).reshape(
-                    -1, 1
-                ).to(
-                    x.device
+                l_loc, l_scale = (
+                    torch.tensor(
+                        self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
+                    )
+                    .reshape(-1, 1)
+                    .to(x.device),
+                    torch.tensor(
+                        self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
+                    )
+                    .reshape(-1, 1)
+                    .to(x.device),
                 )
 
             # Single size factor
@@ -187,7 +188,6 @@ class SCVI(nn.Module):
                 z = torch.cat([z, x[..., -1].view(-1, 1)], dim=-1)
 
             match self.reconstruction:
-
                 case "ZINB":
                     gate_logits, mu = self.x_decoder(z)
                     nb_logits = (l * mu + self.epsilon).log() - (
@@ -242,14 +242,13 @@ class SCVI(nn.Module):
         x : torch.Tensor
             Input gene counts.
 
-        y : torch.Tensor or NoneType, default: None
+        y : torch.Tensor, optional
             Not used in a meaningful way, kept for compatibility.
 
         """
         pyro.module("scvi", self)
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
-
             # If batch corrected, this is expression appended with batch
             z_loc, z_scale, l_loc, l_scale = self.zl_encoder(x)
 
@@ -266,10 +265,10 @@ class SCVI(nn.Module):
         x : torch.Tensor
             Input gene counts.
 
-        y_source : torch.Tensor or NoneType, default: None
+        y_source : torch.Tensor, optional
             Not used in a meaningful way, kept for compatibility.
 
-        y_target : torch.Tensor or NoneType, default: None
+        y_target : torch.Tensor, optional
             Not used in a meaningful way, kept for compatibility.
 
 
@@ -295,7 +294,6 @@ class SCVI(nn.Module):
             z_enc = torch.cat([z_enc, x[..., -1].view(-1, 1)], dim=-1)
 
         match self.reconstruction:
-
             case "ZINB":
                 gate_logits, mu = self.x_decoder(z_enc)
                 nb_logits = (l_enc * mu + self.epsilon).log() - (
@@ -383,7 +381,6 @@ class SCVI(nn.Module):
         """
         Saves model parameters to disk.
 
-
         Parameters
         ----------
         path : str, default: "scvi_params"
@@ -398,13 +395,12 @@ class SCVI(nn.Module):
         """
         Loads model parameters from disk.
 
-
         Parameters
         ----------
         path : str, default: "scvi_params"
             Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
 
-        map_location : str or NoneType, default: None
+        map_location : str, optional
             Specifies where the model should be loaded. See `torch.device` for details.
 
         """
@@ -433,7 +429,6 @@ class SCVI(nn.Module):
 class SCANVI(nn.Module):
     """
     Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through `Pyro`.
-
 
     Parameters
     ----------
@@ -493,7 +488,6 @@ class SCANVI(nn.Module):
         batch_correction: bool = False,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
-
         # Init params & hyperparams
         self.alpha = alpha
         self.scale_factor = scale_factor
@@ -505,7 +499,7 @@ class SCANVI(nn.Module):
         self.batch_correction = batch_correction  # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction
 
-        super(SCANVI, self).__init__()
+        super().__init__()
 
         # Setup NN functions
 
@@ -612,14 +606,17 @@ class SCANVI(nn.Module):
 
             # If batch correction, pick corresponding loc scale
             if self.batch_correction:
-                l_loc, l_scale = torch.tensor(
-                    self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
-                ).reshape(-1, 1).to(x.device), torch.tensor(
-                    self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
-                ).reshape(
-                    -1, 1
-                ).to(
-                    x.device
+                l_loc, l_scale = (
+                    torch.tensor(
+                        self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
+                    )
+                    .reshape(-1, 1)
+                    .to(x.device),
+                    torch.tensor(
+                        self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
+                    )
+                    .reshape(-1, 1)
+                    .to(x.device),
                 )
 
             # Single size factor
@@ -714,7 +711,6 @@ class SCANVI(nn.Module):
         pyro.module("scanvi", self)
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
-
             z2_loc, z2_scale, l_loc, l_scale = self.z2l_encoder(x)
 
             pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
@@ -890,7 +886,6 @@ class SCANVI(nn.Module):
         """
         Saves model parameters to disk.
 
-
         Parameters
         ----------
         path : str, default: "scanvi_params"
@@ -905,13 +900,12 @@ class SCANVI(nn.Module):
         """
         Loads model parameters from disk.
 
-
         Parameters
         ----------
         path : str, default: "scanvi_params"
             Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
 
-        map_location : str or NoneType, default: None
+        map_location : str, optional
             Specifies where the model should be loaded. See `torch.device` for details.
 
         """
@@ -940,7 +934,6 @@ class Patches(nn.Module):
     """
     Patches, the multi-attribute model.
 
-
     Parameters
     ----------
     num_genes : int
@@ -958,13 +951,13 @@ class Patches(nn.Module):
     len_attrs : array-like
         1D Array-like of `int`. Specifies how many attributes per condition class.
 
-    betas : array-like or NoneType, default: None
-        Scales the adversarial & classifier loss for each condition class. If `None`, defaults to `1`.
+    betas : array-like, optional
+        Scales the adversarial & classifier loss for each condition class.
 
-    w_loc : array-like, default: [0, 3]
+    w_loc : array-like, optional
         Means for the conditionally selected multivariate gaussians to parameterize each `w_k`.
 
-    w_scale : array-like, default: [0.1, 1]
+    w_scale : array-like, optional
         Stds for the conditionally selected multivariate gaussians to parameterize each `w_k`.
 
     w_dim : int, default: 2
@@ -1028,8 +1021,8 @@ class Patches(nn.Module):
         num_labels,
         len_attrs,
         betas=None,
-        w_loc=[0, 3],
-        w_scale=[0.1, 1],
+        w_loc=None,
+        w_scale=None,
         w_dim: int = 2,
         latent_dim: int = 10,
         num_layers: int = 2,
@@ -1040,7 +1033,6 @@ class Patches(nn.Module):
         ld_normalize: bool = True,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
-
         # Init params & hyperparams
         self.len_attrs = (
             len_attrs  # List keeping number of possibilities for each attribute
@@ -1060,20 +1052,28 @@ class Patches(nn.Module):
         self.w_dim = w_dim  # Latent dimension for each label
         self.l_loc = l_loc
         self.l_scale = l_scale
+
+        if w_loc is None:
+            w_loc = [0, 3]
+
         self.w_locs = w_loc  # Prior means for attribute being 0,1 (indices correspond to attribute value)
+
+        if w_scale is None:
+            w_scale[0.1, 1]
+
         self.w_scales = w_scale  # Prior scales for attribute being 0,1 (indices correspond to attribute value)
+
         self.batch_correction = batch_correction  # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction  # Distribution for the reconstruction
         self.sparsity = ld_sparsity  # Sparsity, used only with LD
         self.normalize = ld_normalize  # Normalization, adds bias to LD
         self.epsilon = 0.006
 
-        super(Patches, self).__init__()
+        super().__init__()
 
         # Setup NN functions
 
         match self.reconstruction:
-
             case "ZINB":
                 self.rho_decoder = _make_func(
                     in_dims=self.latent_dim + (self.w_dim * self.num_labels),
@@ -1213,14 +1213,17 @@ class Patches(nn.Module):
 
             # If batch correction, pick corresponding loc scale
             if self.batch_correction:
-                l_loc, l_scale = torch.tensor(
-                    self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
-                ).reshape(-1, 1).to(x.device), torch.tensor(
-                    self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
-                ).reshape(
-                    -1, 1
-                ).to(
-                    x.device
+                l_loc, l_scale = (
+                    torch.tensor(
+                        self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
+                    )
+                    .reshape(-1, 1)
+                    .to(x.device),
+                    torch.tensor(
+                        self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
+                    )
+                    .reshape(-1, 1)
+                    .to(x.device),
                 )
 
             # Single size factor
@@ -1320,7 +1323,6 @@ class Patches(nn.Module):
         pyro.module("patches", self)
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
-
             # Variational for rho & l
             rho_loc, rho_scale, l_loc, l_scale = self.rho_l_encoder(x)
 
@@ -1597,7 +1599,6 @@ class Patches(nn.Module):
         """
         Saves model parameters to disk.
 
-
         Parameters
         ----------
         path : str, default: "patches_params"
@@ -1612,13 +1613,12 @@ class Patches(nn.Module):
         """
         Loads model parameters from disk.
 
-
         Parameters
         ----------
         path : str, default: "parches_params"
             Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
 
-        map_location : str or NoneType, default: None
+        map_location : str, optional
             Specifies where the model should be loaded. See `torch.device` for details.
 
         """

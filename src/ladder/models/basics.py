@@ -1,14 +1,16 @@
 """
-This module houses the private methods generally used for model definitions.
+The basics module houses the private methods generally used for model definitions.
+
 Although all methods are intended to be private, we provide documentation
 for those who would like to construct their own models using these helpers.
 """
 
+from typing import Literal
+
 import torch
 import torch.nn as nn
-from torch.nn.functional import softplus, softmax
 from pyro.distributions.util import broadcast_shape
-from typing import Literal
+from torch.nn.functional import softmax, softplus
 
 
 def _split_in_half(t):
@@ -29,7 +31,6 @@ def _split_in_half(t):
         Size 2 tuple of tensors that are the halves of the original `torch.Tensor`.
 
     """
-
     return t.reshape(t.shape[:-1] + (2, -1)).unbind(-2)
 
 
@@ -73,9 +74,8 @@ def _make_fc(dims):
     layers : nn.Sequential
         The layers packed into a single module.
     """
-
     layers = []
-    for in_dim, out_dim in zip(dims, dims[1:]):
+    for in_dim, out_dim in zip(dims, dims[1:], strict=False):
         layers.append(nn.Linear(in_dim, out_dim))
         layers.append(nn.BatchNorm1d(out_dim))
         layers.append(nn.ReLU())
@@ -127,7 +127,6 @@ class _make_func(nn.Module):
         return logits
 
     def _normal_forward(self, inputs):
-
         ## Pre-conditions below
 
         _inputs = inputs.reshape(-1, inputs.size(-1))
@@ -162,7 +161,6 @@ class _make_func(nn.Module):
 
         # Layer configurations
         match last_config:
-
             case "default":  # Last will be 2*out for easy reparam
                 dims = [in_dims] + hidden_dims + [out_dim]
 
