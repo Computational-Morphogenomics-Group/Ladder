@@ -1,4 +1,4 @@
-# Workflows
+# Workflows API (High-level)
 
 Import ladder as:
 
@@ -9,12 +9,13 @@ import ladder
 
 ```{eval-rst}
 .. module:: ladder.scripts.workflows
-.. currentmodule:: ladder
+.. currentmodule:: ladder.scripts.workflows
 
 .. autosummary::
     :toctree: generated
+    :nosignatures:
 
-    scripts.BaseWorkflow
-    scripts.InterpretableWorkflow
-    scripts.CrossConditionWorkflow
+    BaseWorkflow
+    InterpretableWorkflow
+    CrossConditionWorkflow
 ```

@@ -42,7 +42,7 @@ pip install -e ".[dev,test,doc]"
 
 ## Code-style
 
-This package uses [pre-commit][https://pre-commit.com/] to enforce consistent code-styles. For Python, we specifically
+This package uses [pre-commit](https://pre-commit.com/) to enforce consistent code-styles. For Python, we specifically
 use the style enforced by [Black](https://github.com/psf/black), which is easily applicable through pre-commit hooks.
 On every commit, pre-commit checks will either automatically fix issues with the code, or raise an error message.
 
@@ -55,7 +55,7 @@ pre-commit install
 in the root of the repository.
 Pre-commit will automatically download all dependencies when it is run for the first time.
 
-Alternatively, you can rely on the [pre-commit.ci][https://pre-commit.ci/] service enabled on GitHub.
+Alternatively, you can rely on the [pre-commit.ci](https://pre-commit.ci/) service enabled on GitHub.
 If you didn't run `pre-commit` before pushing changes to GitHub it will automatically commit fixes to your pull request, or show an error message.
 
 If pre-commit.ci added a commit on a branch you still have been working on locally, simply use
@@ -65,17 +65,14 @@ git pull --rebase
 ```
 
 to integrate the changes into yours.
-While the [pre-commit.ci][https://pre-commit.ci/] is useful, we strongly encourage installing and running pre-commit locally first to understand its usage.
-
-[pre-commit]: https://pre-commit.com/
-[pre-commit.ci]: https://pre-commit.ci/
+While the [pre-commit.ci](https://pre-commit.ci/) is useful, we strongly encourage installing and running pre-commit locally first to understand its usage.
 
 
 (writing-tests)=
 
 ## Writing tests
 
-This package uses [pytest][https://docs.pytest.org/en/stable/] for automated testing.
+This package uses [pytest](https://docs.pytest.org/en/stable/) for automated testing.
 Please write {doc}`scanpy:dev/testing` for every function added to the package.
 
 Most IDEs integrate with pytest and provide a GUI to run tests.
@@ -125,7 +122,7 @@ gives you time to fix the issue or reach out to the developers of the dependency
 ### Updating the version number
 
 Before making a release, you need to update the version number in the `pyproject.toml` file.
-Please adhere to [Semantic Versioning][https://semver.org/], in brief
+Please adhere to [Semantic Versioning](https://semver.org/), in brief
 
 > Given a version number MAJOR.MINOR.PATCH, increment the:
 >
@@ -137,19 +134,19 @@ Please adhere to [Semantic Versioning][https://semver.org/], in brief
 
 Once you are done, commit and push your changes and navigate to the "Releases" page of this project on GitHub.
 Specify `vX.X.X` as a tag name and create a release.
-For more information, see [managing GitHub releases][https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository].
+For more information, see [managing GitHub releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
 This will automatically create a git tag and trigger a Github workflow that creates a release on [PyPI][https://pypi.org/].
 
 
 ## Writing documentation
 
 Please write documentation for new or changed features and use-cases.
-This project uses [sphinx][https://www.sphinx-doc.org/en/master/] with the following features:
+This project uses [sphinx](https://www.sphinx-doc.org/en/master/) with the following features:
 
--   The [myst][https://myst-nb.readthedocs.io/en/latest/] extension allows to write documentation in markdown/Markedly Structured Text
--   [Numpy-style docstrings][https://numpydoc.readthedocs.io/en/latest/format.html] (through the [napoloen][ https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html] extension).
--   Jupyter notebooks as tutorials through [myst-nb][] (See [Tutorials with myst-nb](#tutorials-with-myst-nb-and-jupyter-notebooks))
--   [sphinx-autodoc-typehints][https://github.com/tox-dev/sphinx-autodoc-typehints], to automatically reference annotated input and output types
+-   The [myst](https://myst-nb.readthedocs.io/en/latest/) extension allows to write documentation in markdown/Markedly Structured Text
+-   [Numpy-style docstrings](https://numpydoc.readthedocs.io/en/latest/format.html) (through the [napoloen](https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html) extension).
+-   Jupyter notebooks as tutorials through [myst-nb](https://myst-nb.readthedocs.io/en/latest/),
+-   [sphinx-autodoc-typehints](https://github.com/tox-dev/sphinx-autodoc-typehints), to automatically reference annotated input and output types
 -   Citations (like {cite:p}`Virshup_2023`) can be included with [sphinxcontrib-bibtex](https://sphinxcontrib-bibtex.readthedocs.io/)
 
 See scanpy’s {doc}`scanpy:dev/documentation` for more information on how to write your own.
@@ -157,12 +154,12 @@ See scanpy’s {doc}`scanpy:dev/documentation` for more information on how to wr
 
 ### Tutorials with myst-nb and jupyter notebooks
 
-The documentation is set-up to render jupyter notebooks stored in the `docs/notebooks` directory using [myst-nb][https://myst-nb.readthedocs.io/en/latest/].
+The documentation is set-up to render jupyter notebooks stored in the `docs/notebooks` directory using [myst-nb](https://myst-nb.readthedocs.io/en/latest/).
 Currently, only notebooks in `.ipynb` format are supported that will be included with both their input and output cells.
 It is your responsibility to update and re-run the notebook whenever necessary.
 
 If you are interested in automatically running notebooks as part of the continuous integration,
-please check out [this feature request][ https://github.com/scverse/cookiecutter-scverse/issues/40] in the `cookiecutter-scverse` repository.
+please check out [this feature request](https://github.com/scverse/cookiecutter-scverse/issues/40) in the `cookiecutter-scverse` repository.
 
 #### Hints
 

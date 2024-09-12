@@ -48,43 +48,43 @@ def train_pyro(
 
     Parameters
     ----------
-    model : nn.module
+    model : :class:`~torch.nn.Module`
         The model to train.
 
-    train_loader : utils.DataLoader
+    train_loader : :class:`~torch.utils.data.DataLoader`
         Data loader for the training set.
 
-    test_loader : utils.DataLoader
+    test_loader : :class:`~torch.utils.data.DataLoader`
         Data loader for the test set.
 
-    num_epochs : int, default: 500
+    num_epochs : :class:`int`, default: 500
         Maximum number of epochs to run.
 
-    convergence_threshold : float, default: 1e-3
+    convergence_threshold : :class:`float`, default: 1e-3
         Minimum improvement to decide on convergence.
 
-    convergence_window : int, default: 15
+    convergence_window : :class:`int`, default: 15
         Patience window for deciding on convergence.
 
-    verbose : bool, default: True
+    verbose : :class:`bool`, default: True
         If `True`, prints out the loss at every epoch.
 
-    device : torch.device
+    device : :class:`~torch.device`
         Device object to run models on.
 
-    optim_args : dict, default: {"optimizer": opt.Adam,"optim_args": {"lr": 1e-3, "eps": 1e-2},"gamma": 1,"milestones": [1e10]}
+    optim_args : :class:`dict`, default: {"optimizer": opt.Adam,"optim_args": {"lr": 1e-3, "eps": 1e-2},"gamma": 1,"milestones": [1e10]}
         Arguments to be passed to `MultiStepLR` for fine tuning if needed.
 
     Returns
     -------
-    model : nn.Module
+    model : :class:`~torch.nn.Module`
         The model object post-training.
 
-    loss_track_train : np.array
-        `float` array containing the training loss per epoch.
+    loss_track_train : :class:`~numpy.ndarray`
+        :class:`float` array containing the training loss per epoch.
 
-    loss_track_test : np.array
-        `float` array containing the test loss per epoch.
+    loss_track_test : :class:`~numpy.ndarray`
+        :class:`float` array containing the test loss per epoch.
     """
     if optim_args is None:
         optim_args = {
@@ -174,58 +174,58 @@ def train_pyro_disjoint_param(
 
     Parameters
     ----------
-    model : nn.module
+    model : :class:`~torch.nn.Module`
         The model to train.
 
-    train_loader : utils.DataLoader
+    train_loader : :class:`~torch.utils.data.DataLoader`
         Data loader for the training set.
 
-    test_loader : utils.DataLoader
+    test_loader : :class:`~torch.utils.data.DataLoader`
         Data loader for the test set.
 
-    num_epochs : int, default: 500
+    num_epochs : :class:`int`, default: 500
         Maximum number of epochs to run.
 
-    convergence_threshold : float, default: 1e-3
+    convergence_threshold : :class:`float`, default: 1e-3
         Minimum improvement to decide on convergence.
 
-    convergence_window : int, default: 15
+    convergence_window : :class:`int`, default: 15
         Patience window for deciding on convergence.
 
-    verbose : bool, default: True
+    verbose : :class:`bool`, default: True
         If `True`, prints out the loss at every epoch.
 
-    device : torch.device
+    device : :class:`~torch.device`
         Device object to run models on.
 
-    lr : float, default: 1e-2
+    lr : :class:`float`, default: 1e-2
         Learning rate for the model.
 
-    eps : float, default: 1e-2
+    eps : :class:`float`, default: 1e-2
         Eps to be passed to the Adam optimizer.
 
-    betas : tuple, default: (0.90, 0.999)
+    betas : :class:`tuple`, default: (0.90, 0.999)
         Betas to be passed to the Adam optimizer.
 
-    warmup : int, default: 0
+    warmup : :class:`int`, default: 0
         Number of epochs to run the classifier before running the entire model.
 
     Returns
     -------
-    model : nn.Module
+    model : :class:`~torch.nn.Module`
         The model object post-training.
 
-    loss_track_train : np.array
-        `float` array containing the training loss per epoch.
+    loss_track_train : :class:`~numpy.ndarray`
+        :class:`float` array containing the training loss per epoch.
 
-    loss_track_test : np.array
-        `float` array containing the test loss per epoch.
+    loss_track_test : :class:`~numpy.ndarray`
+        :class:`float` array containing the test loss per epoch.
 
-    params_nonc_names : set(str)
-        `str` set containing model parameter names except the classifier.
+    params_nonc_names : :class:`set`
+        :class:`str` set containing model parameter names except the classifier.
 
-    params_c_names : set(str)
-        `str` set containing model parameter names for the classifier.
+    params_c_names : :class:`set`
+        :class:`str` set containing model parameter names for the classifier.
     """
     print(f"Using device: {device}\n")
 

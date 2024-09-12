@@ -18,6 +18,7 @@ __pycache__/
 # docs
 /docs/api/generated/
 /docs/_build/
+*.zip
 
 # Downloaded data
 /data/

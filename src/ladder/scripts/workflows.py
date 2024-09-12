@@ -34,125 +34,125 @@ class BaseWorkflow:
 
     Parameters
     ----------
-    anndata : ad.AnnData
+    anndata : :class:`~anndata.AnnData`
         The dataset object to be used throughout the analyses.
 
-    config : {cross-condition", "interpretable"}, default: "cross-condition"
+    config : :class:`Literal["cross-condition", "interpretable"]`, default: "cross-condition"
         Defines the workflow to be used. Affects model structure.
 
-    verbose : bool, default: False
+    verbose : :class:`bool`, default: False
         If `True`, prints progress messages for various methods within the module.
 
-    random_seed : int, optional
+    random_seed : :class:`int`, optional
         If given, seeds the internal modules with the value.
 
     Attributes
     ----------
-    anndata : ad.AnnData
-        The attached dataset object.
+    anndata : :class:`~anndata.AnnData`
+        The attached :class:`~torch.utils.data.Dataset` object.
 
-    batch_key : str or NoneType
-        Optional batch key in `anndata.obs` for correction.
+    batch_key : :class:`str`, optional
+        Optional batch key in :attr:`~anndata.AnnData.obs` for correction.
 
-    batch_mapping : dict
+    batch_mapping : :class:`dict`
         Mapping of batch literals to encodings, only appears if batch key is provided in workflow.
 
-    cell_type_label_key : str or NoneType
-        Optional cell type labels in `anndata.obs`, required if cell-type specific evaluation is desired.
+    cell_type_label_key : :class:`str`, optional
+        Optional cell type labels in :attr:`~anndata.AnnData.obs`, required if cell-type specific evaluation is desired.
 
-    config : {cross-condition", "interpretable"}, default: "cross-condition"
+    config : :class:`Literal["cross-condition", "interpretable"]`, default: "cross-condition"
         The config string provided during construction.
 
-    converter : utils.AnndataConverter
-        Low-level converter class for `dataset`. See `utils` for details.
+    converter : :class:`~ladder.data.real_data.AnndataConverter`
+        Low-level converter class for the attached :class:`~torch.utils.data.Dataset`. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
 
-    dataset : torch.utils.data.Dataset
-        Low-level dataset object passed to the model. See `utils` for details.
+    dataset : :class:`~torch.utils.data.Dataset`
+        Low-level :class:`~torch.utils.data.Dataset` object passed to the model. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
 
-    factors : list of str
+    factors : :class:`list`
         List of factors to register to the model.
 
-    verbose : bool or NoneType
+    verbose : :class:`bool`, optional
         If `True`, prints progress messages for various methods within the module.
 
-    random_seed : int or NoneType
+    random_seed : :class:`int`, optional
         If given, seeds the internal modules with the value.
 
-    label_style : str
+    label_style : :class:`str`
         Defines the conditional encoding style to use depending on the model.
 
-    latent_dim : int
+    latent_dim : :class:`int`
         Size of the latent dimension for the model. Common latent for Patches.
 
-    len_attrs : list of int
+    len_attrs : :class:`list`
         Specifies the number of attributes per condition class.
 
-    levels : dict
+    levels : :class:`dict`
         Mapping of condition literals to encodings.
 
-    l_mean : float or array_like
-        If batch key is provided in workflow, the empirical library size log-mean for each batch (1-D Array-like of `float`). A single value otherwise.
+    l_mean : :class:`float` or array_like
+        If :attr:`batch_key` is provided in workflow, the empirical library size log-mean for each batch (1-D Array-like of :class:`float`). A single value otherwise.
 
-    l_scale : float or array_like
-        If batch key is provided in workflow, then the empirical library size log-variance for each batch (1-D Array-like of `float`). A single value otherwise.
+    l_scale : :class:`float` or array_like
+        If :attr:`batch_key` is provided in workflow, then the empirical library size log-variance for each batch (1-D Array-like of :class:`float`). A single value otherwise.
 
-    minibatch_size : int
+    minibatch_size : :class:`int`
         Size of the minibatch to be provided during training.
 
-    model : torch.nn.Module
+    model : :class:`~torch.nn.Module`
         The model object attached to the workflow.
 
-    model_type : str
+    model_type : :class:`str`
         Specifies the model attached to the current workflow.
 
-    optim_args : dict
-        Optimizer arguments passed to low-level trainer. See `scripts` for details.
+    optim_args : :class:`dict`
+        Optimizer arguments passed to low-level trainer. See :mod:`~ladder.scripts.training` for details.
 
-    predictive : pyro.infer.Predictive
+    predictive : :class:`~pyro.infer.predictive.Predictive`
         Low-level generator to be used for tasks after training.
 
-    reconstruction : str
+    reconstruction : :class:`str`
         Defines the decoder to be used.
 
-    train_loss : np.array
-        Array of losses recorded on the training set during training.
+    train_loss : :class:`~numpy.ndarray`
+        :class:`~numpy.ndarray` of losses recorded on the training set during training.
 
-    train_set : torch.utils.data.Dataset
-        Low-level training set passed to the model. See `utils` for details.
+    train_set : :class:`~torch.utils.data.Dataset`
+        Low-level training :class:`~torch.utils.data.Dataset` passed to the model. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
 
-    test_loss : np.array
-        Array of losses recorded on the test set during training.
+    test_loss : :class:`~numpy.ndarray`
+        :class:`~numpy.ndarray` of losses recorded on the test set during training.
 
     test_set : torch.utils.data.Dataset
-        Low-level test set passed to the model. See `utils` for details.
+        Low-level test :class:`~torch.utils.data.Dataset` passed to the model. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
 
-    w_dim : int or NoneType
+    w_dim : :class:`int`, optional
         Size of conditional latents, only defined for Patches.
 
     Methods
     -------
-    prep_model
+    prep_model(factors, batch_key=None, cell_type_label_key=None, minibatch_size=128, model_type="Patches", model_args=None, optim_args=None)
         Prepares the model to be run.
 
-    run_model
+    run_model(max_epochs=1500, convergence_threshold=1e-3, convergence_window=30, classifier_warmup=0, params_save_path=None)
         Runs the model on the attached data object.
 
-    save_model
+    save_model(params_save_path)
         Saves the attached model.
 
-    load_model
-        Loads parameters for the attached model. Needs `prep_model` to be run first.
+    load_model(params_load_path)
+        Loads parameters for the attached model. Needs :meth:`prep_model` to be run first.
 
-    plot_loss
+    plot_loss()
         Simple plotter for loss functions.
 
-    write_embeddings
-        Places the calculated cell embeddings from the trained model under the corresponding `anndata.obsm` field.
+    write_embeddings()
+        Places the calculated cell embeddings from the trained model under the corresponding :attr:`~anndata.AnnData.obsm` field.
 
-    evaluate_reconstruction
+    evaluate_reconstruction(subset=None, cell_type=None, n_iter=5)
         Evaluates the quality of reconstructions with generative metrics.
 
-    evaluate_separability
+    evaluate_separability(factor=None)
         Evaluates the separability of the latent encodings with respect to conditional effects.
 
     """
@@ -370,26 +370,26 @@ Model: {self.model_type}
 
         Parameters
         ----------
-        factors : list of str
-            Factors from `anndata.obs` to register to the model.
+        factors : :class:`list`
+            Factors from :attr:`~anndata.AnnData.obs` to register to the model.
 
-        batch_key : str, optional
+        batch_key : :class:`str`, optional
             Defines the workflow to be used. Affects model structure. Can later be accessed with same named attribute.
 
-        cell_type_label_key : str or NoneType
-            Optional cell type labels in `anndata.obs`, required if cell-type specific evaluation is desired.
+        cell_type_label_key : :class:`str, optional
+            Optional cell type labels in :attr:`~anndata.AnnData.obs`, required if cell-type specific evaluation is desired.
 
-        minibatch_size : int
+        minibatch_size : :class:`int`, default: 128
             Size of the minibatch to be provided during training.
 
-        model_type : {"SCVI", "SCANVI", "Patches"}, default: "Patches"
+        model_type : :class:`Literal["SCVI", "SCANVI", "Patches"]`, default: "Patches"
             Specifies the model attached to the current workflow.
 
-        model_args : dict
-            Model arguments passed to low-level model constructor. See `models` for details.
+        model_args : :class:`dict`
+            Model arguments passed to low-level model constructor. See :mod:`~ladder.models` for details.
 
-        optim_args : dict
-            Optimizer arguments passed to low-level trainer. See `scripts` for details.
+        optim_args : :class:`dict`
+            Optimizer arguments passed to low-level trainer. See :mod:`~ladder.scripts.training` for details.
         """
         # Flush params if needed
         pyro.clear_param_store()
@@ -485,19 +485,19 @@ Model: {self.model_type}
 
         Parameters
         ----------
-        max_epochs : int, default: 1500
+        max_epochs : :class:`int`, default: 1500
             Maximum number of epochs to run.
 
-        convergence_threshold : float, default: 1e-3
+        convergence_threshold : :class:`float`, default: 1e-3
             Minimum improvement required to continue training.
 
-        convergence_window : int, default: 30
+        convergence_window : :class:`int`, default: 30
             Number of epochs to wait until a new minimum is attained.
 
-        classifier_warmup : int, default: 0
+        classifier_warmup : :class:`int`, default: 0
             Number of epochs to run the classifier before running the entire model.
 
-        params_save_path : str, optional
+        params_save_path : :class:`str`, optional
             If provided, saves the model to the specified path.
 
         """
@@ -559,17 +559,17 @@ Model: {self.model_type}
 
         Parameters
         ----------
-        params_save_path : str
+        params_save_path : :class:`str`
             Path to save model parameters. Expects only the name without extensions.
         """
         self.model.save(params_save_path)
 
     def load_model(self, params_load_path: str):
-        """Loads parameters for the attached model. Needs `prep_model` to be run first.
+        """Loads parameters for the attached model. Needs :meth:`prep_model` to be run first.
 
         Parameters
         ----------
-        params_load_path : str
+        params_load_path : :class:`str`
             Path to find model parameters. Expects only the shared prefix, and not the trailing "_torch.pth" or "_pyro.pth".
         """
         self.model.load(params_load_path)
@@ -581,7 +581,7 @@ Model: {self.model_type}
 
         Parameters
         ----------
-        save_loss_path : str, optional
+        save_loss_path : :class:`str`, optional
             If provided, saves the figure to the specified location. Requires the full name with extensions (eg. fig.png).
         """
         scripts._plot_loss(
@@ -589,7 +589,7 @@ Model: {self.model_type}
         )
 
     def write_embeddings(self):
-        """Places the calculated cell embeddings from the trained model under the corresponding `anndata.obsm` field.
+        """Places the calculated cell embeddings from the trained model under the corresponding :attr:`~anndata.AnnData.obsm` field.
 
         Each model has a separate name for their respective latent, so that more than a
         single workflow running on the same object instance does not overwrite info.
@@ -663,13 +663,13 @@ Model: {self.model_type}
 
         Parameters
         ----------
-        subset : str, optional
-            Key from `levels` to subset cells for a specific condition before evaluating reconstruction.
+        subset : :class:`str`, optional
+            Key from :attr:`~BaseWorkflow.levels` to subset cells for a specific condition before evaluating reconstruction.
 
-        cell_type : str, optional
-            Requires `cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating reconstruction.
+        cell_type : :class:`str`, optional
+            Requires :attr`~BaseWorkflow.cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating reconstruction.
 
-        n_iter : int, default: 5
+        n_iter : :class:`int`, default: 5
             Number of times to repeat the generative process.
         """
         printer = []
@@ -717,8 +717,8 @@ Model: {self.model_type}
 
         Parameters
         ----------
-        factor : str, optional
-            Item listed in `factors`. If not provided, the metrics will be evaluated on the combinations of factors.
+        factor : :class:`str`, optional
+            Item listed in :attr:`BaseWorkflow.factors`. If not provided, the metrics will be evaluated on the combinations of factors.
         """
         # Make sure factor is in factors or not provided
         assert factor is None or factor in self.factors
@@ -767,22 +767,22 @@ class InterpretableWorkflow(BaseWorkflow):
 
     Parameters
     ----------
-    anndata : ad.AnnData
+    anndata : :class:`~anndata.AnnData`
         The dataset object to be used throughout the analyses.
 
-    verbose : bool, default: False
+    verbose : :class:`bool`, default: False
         If `True`, prints progress messages for various methods within the module.
 
-    random_seed : int, optional
+    random_seed : :class:`int`, optional
         If given, seeds the internal modules with the value.
 
     Methods
     -------
-    get_conditional_loadings
-        Writes attribute specific gene loadings to `anndata.var`.
+    get_conditional_loadings()
+        Writes attribute specific gene loadings to :attr:`~anndata.AnnData.var`.
 
-    get_common_loadings
-        Writes non-conditional gene loadings to `anndata.var`.
+    get_common_loadings()
+        Writes non-conditional gene loadings to :attr:`~anndata.AnnData.var`.
     """
 
     # Constructor
@@ -798,7 +798,7 @@ class InterpretableWorkflow(BaseWorkflow):
         )
 
     def get_conditional_loadings(self):
-        """Writes attribute specific gene loadings to `anndata.var`.
+        """Writes attribute specific gene loadings to :attr:`~anndata.AnnData.var`.
 
         Only to be used with Patches, as the other models do not offer
         an attribute-specific way to learn coefficients.
@@ -829,7 +829,7 @@ class InterpretableWorkflow(BaseWorkflow):
             print("Written condition specific loadings to 'self.anndata.var'.")
 
     def get_common_loadings(self):
-        """Writes non-conditional gene loadings to `anndata.var`.
+        """Writes non-conditional gene loadings to :attr:`~anndata.AnnData.var`.
 
         Can be used with all models.
         """
@@ -849,24 +849,23 @@ class InterpretableWorkflow(BaseWorkflow):
 class CrossConditionWorkflow(BaseWorkflow):
     """Cross-condition workflow for training with a non-linear decoder.
 
-    Inherits `BaseWorkflow` and adds functionalities desired from
-    running a cross-conditional model for more precise reconstructions
-    and transfers.
+    Inherits :class:`BaseWorkflow` and adds functionalities desired from
+    running a cross-conditional model for more precise reconstructions and transfers.
 
     Parameters
     ----------
-    anndata : ad.AnnData
+    anndata : :class:`~anndata.AnnData`
         The dataset object to be used throughout the analyses.
 
-    verbose : bool, default: False
+    verbose : :class:`bool`, default: False
         If `True`, prints progress messages for various methods within the module.
 
-    random_seed : int, optional
+    random_seed : :class:`int`, optional
         If given, seeds the internal modules with the value.
 
     Methods
     -------
-    evaluate_transfer
+    evaluate_transfer(source, target, cell_type=None, n_iter=10)
         Evaluates the quality of transfers with generative metrics.
     """
 
@@ -890,16 +889,16 @@ class CrossConditionWorkflow(BaseWorkflow):
 
         Parameters
         ----------
-        source : str
-            Key from `levels` to decide source condition.
+        source : :class:`str`
+            Key from :attr:`BaseWorkflow.levels` to decide source condition.
 
-        target : str
-            Key from `levels` to decide target condition.
+        target : :class:`str`
+            Key from :attr:`BaseWorkflow.levels` to decide target condition.
 
-        cell_type : str, optional
-            Requires `cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating transfer.
+        cell_type : :class:`str`, optional
+            Requires :attr:`BaseWorkflow.cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating transfer.
 
-        n_iter : int, default: 10
+        n_iter : :class:`int`, default: 10
             Number of times to repeat the generative process.
         """
         printer = []

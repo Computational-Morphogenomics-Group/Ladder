@@ -460,10 +460,10 @@ def distrib_dataset(
     batch_size : :class:`int`
         Mini-batch size for the models to train on.
 
-    keep_train : array_like
+    keep_train : array_like, optional
         1D Array-like of `str`. Specifies the levels to keep in the training dataset. Elements must be from `levels.keys()`.
 
-    keep_test : array_like
+    keep_test : array_like, optional
         1D Array-like of `str`. Specifies the levels to keep in the test dataset. Elements must be from `levels.keys()`.
 
     batch_key : :class:`str`, optional

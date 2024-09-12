@@ -19,27 +19,6 @@ Please refer to the [documentation][link-docs]. In particular, the
 
 -   [API documentation][link-api].
 
-## Installation
-
-You need to have Python 3.10 or newer installed on your system. If you don't have
-Python installed, we recommend installing [Mambaforge](https://github.com/conda-forge/miniforge#mambaforge).
-
-There are several alternative options to install Ladder:
-
-<!--
-1) Install the latest release of `Ladder` from [PyPI][link-pypi]:
-
-```bash
-pip install Ladder
-```
--->
-
-1. Install the latest development version:
-
-```bash
-pip install git+https://github.com/Computational-Morphogenomics-Group/Ladder.git@main
-```
-
 ## Release notes
 
 See the [changelog][changelog].

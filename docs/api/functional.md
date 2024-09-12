@@ -1,34 +1,33 @@
-# Functional
+# Functional API (Low-level)
 
 ## Data
 
 ### Built-in Data
 
 ```{eval-rst}
-.. module:: ladder.data
-.. currentmodule:: ladder
+.. module:: ladder.data.builtin_data
+.. currentmodule:: ladder.data
 
 .. autosummary::
     :toctree: generated
 
-    data.get_data
+    builtin_data.get_data
 ```
 
 ### Tools
 
 ```{eval-rst}
-.. module:: ladder.data
-.. currentmodule:: ladder
+.. module:: ladder.data.real_data
+.. currentmodule:: ladder.data
 
 .. autosummary::
     :toctree: generated
 
-    data.MetadataConverter
-    data.AnndataConverter
-    data.get_data
-    data.construct_labels
-    data.distrib_dataset
-    data.preprocess_anndata
+    real_data.MetadataConverter
+    real_data.AnndataConverter
+    real_data.construct_labels
+    real_data.distrib_dataset
+    real_data.preprocess_anndata
 ```
 
 ## Models
@@ -65,31 +64,31 @@
 ### Metrics
 
 ```{eval-rst}
-.. module:: ladder.scripts
-.. currentmodule:: ladder
+.. module:: ladder.scripts.metrics
+.. currentmodule:: ladder.scripts
 
 .. autosummary::
     :toctree: generated
 
-    scripts.get_normalized_profile
-    scripts.gen_profile_reproduction
-    scripts.get_reproduction_error
-    scripts.calc_asw
-    scripts.kmeans_ari
-    scripts.kmeans_nmi
-    scripts.knn_error
+    metrics.get_normalized_profile
+    metrics.gen_profile_reproduction
+    metrics.get_reproduction_error
+    metrics.calc_asw
+    metrics.kmeans_ari
+    metrics.kmeans_nmi
+    metrics.knn_error
 ```
 
 ### Training
 
 ```{eval-rst}
-.. module:: ladder.scripts
-.. currentmodule:: ladder
+.. module:: ladder.scripts.training
+.. currentmodule:: ladder.scripts
 
 .. autosummary::
     :toctree: generated
 
-    scripts.get_device
-    scripts.train_pyro
-    scripts.train_pyro_disjoint_param
+    training.get_device
+    training.train_pyro
+    training.train_pyro_disjoint_param
 ```

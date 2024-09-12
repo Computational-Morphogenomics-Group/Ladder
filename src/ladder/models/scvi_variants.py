@@ -25,7 +25,7 @@ from .basics import _broadcast_inputs, _make_func, _split_in_half
 
 
 class SCVI(nn.Module):
-    r"""scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through :mod:`pyro`.
+    r"""scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through `pyro`.
 
     Parameters
     ----------
@@ -245,10 +245,10 @@ class SCVI(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y : torch.Tensor, optional
+        y : :class:`~torch.Tensor`, optional
             Not used in a meaningful way, kept for compatibility.
         """
         pyro.module("scvi", self)
@@ -423,7 +423,7 @@ class SCVI(nn.Module):
 
 ## scANVI taken from https://pyro.ai/examples/scanvi.html
 class SCANVI(nn.Module):
-    """Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through :mod:`pyro`.
+    """Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through `pyro`.
 
     Parameters
     ----------
@@ -1568,7 +1568,7 @@ class Patches(nn.Module):
 
         Returns
         -------
-        loc, mu : :class:`~orch.Tensor`
+        loc, mu : :class:`~torch.Tensor`
             Mu of ZINB or Gaussian.
 
         scale, logits : :class:`~torch.Tensor`
