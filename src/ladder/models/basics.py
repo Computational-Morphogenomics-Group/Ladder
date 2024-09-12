@@ -12,25 +12,25 @@ from pyro.distributions.util import broadcast_shape
 from torch.nn.functional import softmax, softplus
 
 
-def _split_in_half(t):
+def _split_in_half(t) -> tuple:
     """Function to split a tensor in half.
 
     Courtesy of:  https://pyro.ai/examples/scanvi.html
 
     Parameters
     ----------
-    t : torch.Tensor
+    t : :class:`~torch.Tensor`
         Tensor to be split
 
     Returns
     -------
-    ts : tuple
-        Size 2 tuple of tensors that are the halves of the original `torch.Tensor`.
+    ts : :class:`tuple`
+        Size 2 tuple of tensors that are the halves of the original :class:`~torch.Tensor`.
     """
     return t.reshape(t.shape[:-1] + (2, -1)).unbind(-2)
 
 
-def _broadcast_inputs(input_args):
+def _broadcast_inputs(input_args) -> list:
     """
     Helper for broadcasting shapes.
 
@@ -39,19 +39,19 @@ def _broadcast_inputs(input_args):
     Parameters
     ----------
     input_args : array-like
-        Array-like of `torch.Tensor` to broadcast.
+        Array-like of :class:`~torch.Tensor` to broadcast.
 
     Returns
     -------
     input_args : array-like
-        Array-like of `torch.Tensor` that includes broadcasted tensors.
+        Array-like of :class:`~torch.Tensor` that includes broadcasted tensors.
     """
     shape = broadcast_shape(*[s.shape[:-1] for s in input_args]) + (-1,)
     input_args = [s.expand(shape) for s in input_args]
     return input_args
 
 
-def _make_fc(dims):
+def _make_fc(dims) -> nn.Sequential:
     """
     Helper to make FC layers in quick succession for hidden layers.
 
@@ -60,11 +60,11 @@ def _make_fc(dims):
     Parameters
     ----------
     dims : array-like
-        Array-like of `int` specifying the sizes for layers. `dims[0], dims[-1]` are input and output respectively.
+        Array-like of :class:`int` specifying the sizes for layers. `dims[0], dims[-1]` are input and output respectively.
 
     Returns
     -------
-    layers : nn.Sequential
+    layers : :class:`~torch.nn.Sequential`
         The layers packed into a single module.
     """
     layers = []
@@ -78,26 +78,26 @@ def _make_fc(dims):
 # Helper to make functions between variables
 class _make_func(nn.Module):
     """
-    Helper to make functions for variational posteriors. Inherits `nn.Module`
+    Helper to make functions for variational posteriors. Inherits :class:`~torch.nn.Module`
 
-    Wraps around `_make_fc` for various distribution configurations
+    Wraps around :func:`_make_fc` for various distribution configurations
     to reduce redundancy when defining the actual models.
 
     Parameters
     ----------
-    in_dims : int
+    in_dims : :class:`int`
         Size of the input layer.
 
     hidden_dims : array_like
         1D Array-like of `int`. Includes sizes for intermediate layers.
 
-    out_dim : int
+    out_dim : :class:`int`
         Size of the output layer.
 
-    last_config : {"default", "+lognormal", "reparam"}, default: "default"
+    last_config : :class:`Literal["default", "+lognormal", "reparam"]`, default: "default"
         The parameterization that is expected by `dist_config`.
 
-    dist_config : {"normal", "zinb", "categorical", "+lognormal", "classifier"}, default: "normal"
+    dist_config : :class`Literal["normal", "zinb", "categorical", "+lognormal", "classifier"]`, default: "normal"
         The distribution for the parameter that corresponds to the modelled layer.
 
     Notes

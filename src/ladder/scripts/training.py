@@ -284,7 +284,7 @@ def train_pyro_disjoint_param(
         # Classifier trains over dataset
         for x, y, _ in train_loader:
             x, y = x.to(device), y.to(device)
-            log_prob_loss = model.adverserial(x, y).mean()
+            log_prob_loss = model.adversarial(x, y).mean()
             prob_losses.append(log_prob_loss.detach().cpu())
 
             optimizer_c.zero_grad()
@@ -311,7 +311,7 @@ def train_pyro_disjoint_param(
                 test_loss = loss_fn(model.model, model.guide, x, y)
                 losses_test.append(test_loss.detach().cpu())
 
-                log_prob_loss = model.adverserial(x, y).mean()
+                log_prob_loss = model.adversarial(x, y).mean()
                 prob_losses_test.append(log_prob_loss.detach().cpu())
 
         if verbose:

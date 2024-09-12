@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE / "extensions"))
 
 # NOTE: If you installed your project in editable mode, this might be stale.
 #       If this is the case, reinstall it to refresh the metadata
-info = metadata("ladder")
+info = metadata("scladder")
 project_name = info["Name"]
 author = info["Author"]
 copyright = f"{datetime.now():%Y}, {author}."
@@ -133,7 +133,17 @@ html_theme_options = {
 pygments_style = "default"
 
 nitpick_ignore = [
+    ("py:class", "optional"),
+    ("py:class", "array_like"),
+    ("py:class", "NoneType"),
     # If building the documentation fails because of a missing link that is outside your control,
     # you can add an exception to this list.
     #     ("py:class", "igraph.Graph"),
+]
+
+nitpick_ignore_regex = [
+    ("py:class", ".*default.*"),
+    ("py:class", '.*".*'),
+    ("py:class", r".*\}.*"),
+    ("py:class", r".*\}.*"),
 ]

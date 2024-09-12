@@ -22,20 +22,20 @@ class MetadataConverter:
     """Class used to convert numerical torch tensors into categorical equivalents.
 
     Allows mapping of numerical tensors with information that would usually be expected
-    in `AnnData.obs` into categorical equivalent with literals from the original metadata.
+    in :attr:`~anndata.AnnData.obs` into categorical equivalent with literals from the original metadata.
     This class allows for arbitrary subsets of data to be mapped back.
 
     Parameters
     ----------
-    metadata : pd.DataFrame
-        The dataframe object that includes the metadata, which is `ad.AnnData.obs` for most cases.
+    metadata : :class:`~pandas.DataFrame`
+        The dataframe object that includes the metadata, which is :attr:`~anndata.AnnData.obs` for most cases.
 
     Attributes
     ----------
-    df_view : pd.DataFrame
+    df_view : :class:`~pandas.DataFrame`
         Dataframe object for reference.
 
-    num_cols : int
+    num_cols : :class:`int`
         Number of columns for `df_view`.
     """
 
@@ -85,17 +85,17 @@ class MetadataConverter:
 
         return np.hstack(stack_list)
 
-    def map_to_df(self, met_val_string: torch.Tensor):
+    def map_to_df(self, met_val_string: torch.Tensor) -> np.ndarray:
         """The function that actually does the metadata mapping.
 
         Parameters
         ----------
-        met_val_string : torch.Tensor
-            Tensor shaped like `utils.TensorDataset`.
+        met_val_string : :class:`~torch.Tensor`
+            Tensor shaped like :class:`~torch.utils.data.TensorDataset`.
 
         Returns
         -------
-        metadata_mapping : np.Array
+        metadata_mapping : :class:`~numpy.ndarray`
             Numerical tensor converted back to categorical equivalent.
         """
         assert (
@@ -111,35 +111,35 @@ class MetadataConverter:
 
 
 class AnndataConverter(MetadataConverter):
-    """Class used to convert tensor datasets into an `ad.AnnData` object.
+    """Class used to convert tensor datasets into an :class:`~anndata.AnnData` object.
 
     This class allows for arbitrary subsets of tensors to be mapped back into
     an object that looks like the subset of the original object. Inherits
-    `MetadataConverter`.
+    :class:`MetadataConverter`.
 
     Parameters
     ----------
-    metadata_df : pd.DataFrame
-        The dataframe object that includes the metadata, which is `ad.AnnData.obs` for most cases.
+    metadata_df : :class:`~pandas.DataFrame`
+        The dataframe object that includes the metadata, which is :attr:`~anndata.AnnData.obs` for most cases.
     """
 
     def __init__(self, metadata_df: pd.DataFrame):
         MetadataConverter.__init__(self, metadata_df)
 
-    def map_to_anndat(self, val_tup):
-        """Function to actually do the mapping to `ad,AnnData`.
+    def map_to_anndat(self, val_tup) -> ad.AnnData:
+        """Function to actually do the mapping to :class:`~anndata.AnnData`.
 
         Parameters
         ----------
-        val_tup : tuple
-            Size 3 tuple of `torch.Tensor`. The first index is used for counts. The second index
+        val_tup : :class:`tuple`
+            Size 3 tuple of :class:`~torch.Tensor`. The first index is used for counts. The second index
             provides labels, which are not used here as they are redundant but required for training.
             The third index provides the numerically encoded metadata.
 
         Returns
         -------
-        anndat : ad.AnnData
-            The anndata equivalent of the numerical `torch.Tensor` objects.
+        anndat : :class:`~anndata.AnnData`
+            The anndata equivalent of the numerical :class:`~torch.Tensor` objects.
         """
         # Make object from the counts
         anndat = ad.AnnData(val_tup[0].numpy())
@@ -162,7 +162,7 @@ class AnndataConverter(MetadataConverter):
 
 
 class ConcatTensorDataset(utils.ConcatDataset):
-    """Allows for arbitrary concatenation of `utils.TensorDataset`.
+    """Allows for arbitrary concatenation of :class:`~torch.utils.data.TensorDataset`.
 
     Courtesy of https://github.com/johann-petrak/pytorch/commit/eb70e81e31508c383bdc17059ddb532a6b40468c
     ConcatDataset of TensorDatasets which supports getting slices and index lists/arrays.
@@ -174,7 +174,7 @@ class ConcatTensorDataset(utils.ConcatDataset):
 
     Parameters
     ----------
-        datasets : Iterable[utils.Dataset]
+        datasets : :class:`Iterable[torch.utils.data.Dataset]`
             List of datasets to be concatenated.
     """
 
@@ -274,21 +274,21 @@ def _process_array(arr):
 
 
 # Simple preprocessing to conver to anndata
-def preprocess_anndata(anndat):
-    """Function to preprocess the input `ad.AnnData` object.
+def preprocess_anndata(anndat) -> ad.AnnData:
+    """Function to preprocess the inputted :class:`~anndata.AnnData` object.
 
     Does not do any critical modifications, but instead ensures that the numerical
-    columns in `ad.AnnData.obs` are of type `float` and string columns are defined
-    as `pd.CategoricalDtype`.
+    columns in :attr:`~anndata.AnnData.obs` are of type :class:`float` and string columns are defined
+    as :class:`~pandas.CategoricalDtype`.
 
     Parameters
     ----------
-    anndat : ad.AnnData
-        The `ad.AnnData` object to be preprocessed.
+    anndat : :class:`~anndata.AnnData`
+        The :class:`~anndata.AnnData` object to be preprocessed.
 
     Returns
     -------
-    anndat : ad.AnnData
+    anndat : :class:`~anndata.AnnData`
         Object after typecasting operations.
     """
     for colname in anndat.obs:
@@ -307,38 +307,38 @@ def construct_labels(
     factors,
     style: Literal["concat", "one-hot"] = "concat",
     batch_key: str = None,
-):
+) -> tuple:
     """Function to generate conditional labels for the various models included.
 
     Parameters
     ----------
     counts
-        The field corresponding to `ad.AnnData.X`.
+        The field corresponding to :attr:`~anndata.AnnData.X`.
 
     metadata
-        The field corresponding to `ad.AnnData.obs`
+        The field corresponding to :attr:`~anndata.AnnData.obs`.
 
     factors : array_like
-        1D Array-like of `str`. The list specifying factors, which are names of the columns from `ad.AnnData.obs`.
+        1D Array-like of :class:`str`. The list specifying factors, which are names of the columns from :attr:`~anndata.AnnData.obs`.
 
-    style : {'concat', 'one-hot'}
+    style : :class:`Literal["concat", "one-hot"]`
         Specifies the label encoding.
 
-    batch_key : str, optional
-        Specifies the batch key, must be included in `ad.AnnData.obs`
+    batch_key : :class:`str`, optional
+        Specifies the batch key, must be included in :attr:`~anndata.AnnData.obs`.
 
     Returns
     -------
-    dataset : utils.TensorDataset
+    dataset : :class:`~torch.utils.data.TensorDataset`
         The dataset object to be used downstream.
 
-    levels : dict
+    levels : :class:`dict`
         A mapping between the literal combinations of `factors` and their numerical equivalents.
 
-    converter : AnndataConverter
+    converter : :class:`AnndataConverter`
         The converter object with the associated dataset.
 
-    batch_mapping : dict
+    batch_mapping : :class:`dict`
         Returned only if `batch_key` is given. Ordinal encoding for the batch dimension.
     """
     # Small checks for batch and sparsity
@@ -443,21 +443,21 @@ def distrib_dataset(
     keep_test=None,
     batch_key: str = None,
     **kwargs,
-):
-    """Function that distributes the `utils.TensorDataset` generated by `construct_labels`.
+) -> tuple:
+    """Function that distributes the :class:`~torch.utils.data.TensorDataset` generated by `construct_labels`.
 
     Parameters
     ----------
-    dataset : utils.TensorDataset
+    dataset : :class:`~torch.utils.data.TensorDataset`
         The `dataset` output from `construct_labels`.
 
-    levels : dict
+    levels : :class:`dict`
         The `levels` output from `construct_labels`.
 
-    split_pcts : array-like, optional
+    split_pcts : array_like, optional
         Size 2 list of `float` specifying the proportions for training and test respectively. Ignored if both `keep_train` and `keep_test` are not `None`.
 
-    batch_size : int
+    batch_size : :class:`int`
         Mini-batch size for the models to train on.
 
     keep_train : array_like
@@ -466,31 +466,31 @@ def distrib_dataset(
     keep_test : array_like
         1D Array-like of `str`. Specifies the levels to keep in the test dataset. Elements must be from `levels.keys()`.
 
-    batch_key : str, optional
+    batch_key : :class:`str`, optional
         Must not be `None` if `batch_key` was previously provided to `construct_labels`. The actual values is unimportant for this scope.
 
-    **kwargs : dict, optional
+    **kwargs : :class:`dict`, optional
         Keyword arguments passed to `utils.DataLoader`.
 
     Returns
     -------
-    train_set : utils.TensorDataset or ConcatTensorDataset
+    train_set : :class:`~torch.utils.data.TensorDataset` or ConcatTensorDataset
         The full training set to be used downstream.
 
-    test_set : utils.TensorDataset or ConcatTensorDataset
+    test_set : :class:`~torch.utils.data.TensorDataset` or ConcatTensorDataset
         The full test set to be used downstream.
 
-    train_loader : utils.DataLoader
+    train_loader : :class:`~torch.utils.data.DataLoader`
         The corresponding loader for `train_set`.
 
-    test_loader : utils.DataLoader
+    test_loader : :class:`~torch.utils.data.DataLoader`
          The corresponding loader for `test_set`.
 
-    l_mean : float or array_like
-        If `batch_key is not None`, the empirical library size log-mean for each batch (1-D Array-like of `float`). A single value otherwise.
+    l_mean : :class:`float` or array_like
+        If `batch_key` is provided, the empirical library size log-mean for each batch (1-D Array-like of :class:`float`). A single value otherwise.
 
-    l_scale : float or array_like
-        If `batch_key is not None`, then the empirical library size log-variance for each batch (1-D Array-like of `float`). A single value otherwise.
+    l_scale : :class:`float` or array_like
+        If `batch_key` is provided, then the empirical library size log-variance for each batch (1-D Array-like of :class:`float`). A single value otherwise.
     """
     if split_pcts is None:
         split_pcts = [0.8, 0.2]

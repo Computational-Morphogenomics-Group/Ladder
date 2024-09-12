@@ -4,4 +4,4 @@ from . import data, models, scripts
 
 __all__ = ["data", "models", "scripts"]
 
-__version__ = version("ladder")
+__version__ = version("scladder")

@@ -78,19 +78,23 @@ def get_data(
     dataset: Literal["Vu", "Ji", "Mascharak"],
     save_path: str = "./data/",
     smoke_test: bool = False,
-):
+) -> None:
     """Used to download data for tutorials.
 
     Parameters
     ----------
-    dataset : {"Vu", "Ji", "Mascharak"}
+    dataset : :class:`Literal["Vu", "Ji", "Mascharak"]`
         Specifies which dataset is to be downloaded.
 
-    save_path : str, default: "./data/"
+    save_path : :class:`str`, default: "./data/"
         Specifies the directory in which the dataset will be saved. Defaults to `./data/`.
 
-    smoke_test : bool, default: False
+    smoke_test : :class:`bool`, default: False
         Used when testing to pass through without actually unpacking the response from server.
+
+    Returns
+    -------
+    None
     """
     assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"
 

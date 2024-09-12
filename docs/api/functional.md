@@ -1,6 +1,20 @@
-# API
+# Functional
 
 ## Data
+
+### Built-in Data
+
+```{eval-rst}
+.. module:: ladder.data
+.. currentmodule:: ladder
+
+.. autosummary::
+    :toctree: generated
+
+    data.get_data
+```
+
+### Tools
 
 ```{eval-rst}
 .. module:: ladder.data
@@ -11,6 +25,7 @@
 
     data.MetadataConverter
     data.AnndataConverter
+    data.get_data
     data.construct_labels
     data.distrib_dataset
     data.preprocess_anndata
@@ -21,6 +36,21 @@
 ```{eval-rst}
 .. module:: ladder.models
 .. currentmodule:: ladder
+
+.. autoclass:: models.Patches
+   :members:
+   :inherited-members:
+   :exclude-members:
+
+.. autoclass: models.SCVI
+   :members:
+   :inherited-members:
+   :exclude-members:
+
+.. autoclass: models.SCANVI
+   :members:
+   :inherited-members:
+   :exclude-members:
 
 .. autosummary::
     :toctree: generated
@@ -35,7 +65,7 @@
 ### Metrics
 
 ```{eval-rst}
-.. module:: ladder.scripts.metrics
+.. module:: ladder.scripts
 .. currentmodule:: ladder
 
 .. autosummary::
@@ -53,7 +83,7 @@
 ### Training
 
 ```{eval-rst}
-.. module:: ladder.scripts.training
+.. module:: ladder.scripts
 .. currentmodule:: ladder
 
 .. autosummary::
@@ -62,18 +92,4 @@
     scripts.get_device
     scripts.train_pyro
     scripts.train_pyro_disjoint_param
-```
-
-### Workflow API
-
-```{eval-rst}
-.. module:: ladder.scripts.workflows
-.. currentmodule:: ladder
-
-.. autosummary::
-    :toctree: generated
-
-    scripts.BaseWorkflow
-    scripts.InterpretableWorkflow
-    scripts.CrossConditionWorkflow
 ```

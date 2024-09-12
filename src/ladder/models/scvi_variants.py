@@ -25,36 +25,59 @@ from .basics import _broadcast_inputs, _make_func, _split_in_half
 
 
 class SCVI(nn.Module):
-    r"""scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through `Pyro`.
+    r"""scVI (https://www.nature.com/articles/s41592-018-0229-2), implemented through :mod:`pyro`.
 
     Parameters
     ----------
-    num_genes : int
+    num_genes : :class:`int`
         Size of the gene space.
 
-    l_loc : float or array-like
+    l_loc : :class:`float` or array_like
         Either a single value for log-mean library size, or a 1D array-like of values if `batch_correction`.
 
-    l_scale : float or array-like
+    l_scale : :class:`float` or array_like
         Either a single value for log-variance library size, or a 1D array-like of values if `batch_correction`.
 
-    hidden_dim : int, default: 128
+    hidden_dim : :class:`int`, default: 128
         Size of the hidden layers throughout the model.
 
-    num_layers : int, default: 2
+    num_layers : :class:`int`, default: 2
         Number of hidden layers between any input and output layer.
 
-    latent_dim : int
+    latent_dim : :class:`int`, default: 10
         Size of the latent variable `z`.
 
-    scale_factor : float, default: 1.0
+    scale_factor : :class:`float`, default: 1.0
         Factor used to scale and normalize the loss.
 
-    batch_correction : bool, default: False
+    batch_correction : :class:`bool`, default: False
         If `True`, expects batch to be appended to input and corrects for batch.
 
-    reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
+    reconstruction : :class:`Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"]`, default: "ZINB"
         The distribiution assumed to model the input data.
+
+    Methods
+    -------
+    __init__(num_genes, l_loc, l_scale, hidden_dim=128, num_layers=2, latent_dim=10, scale_factor=1.0, batch_correction=False, reconstruction="ZINB")
+        Constructor for scVI.
+
+    model(x, y=None)
+        Generative model for scVI.
+
+    guide(x, y=None)
+        Approximate variational posterior for scVI.
+
+    generate(x, y_source=None, y_target=None)
+        Function used post-training for Oracle-scVI to facilitate transfer between conditional labels.
+
+    get_weights()
+        Returns interpretable coefficients for latents.
+
+    save(path="scvi_params")
+        Saves model parameters to disk.
+
+    load(path="scvi_params", map_location=None)
+        Loads model parameters from disk.
     """
 
     def __init__(
@@ -123,10 +146,10 @@ class SCVI(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y : torch.Tensor, optional
+        y : :class:`~torch.Tensor`, optional
             Not used in a meaningful way, kept for compatibility.
         """
         pyro.module("scvi", self)
@@ -218,7 +241,7 @@ class SCVI(nn.Module):
 
     # Guide
     def guide(self, x, y=None):
-        """Approximate variational posteriorfor scVI.
+        """Approximate variational posterior for scVI.
 
         Parameters
         ----------
@@ -243,19 +266,19 @@ class SCVI(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y_source : torch.Tensor, optional
+        y_source : :class:`~torch.Tensor`, optional
             Not used in a meaningful way, kept for compatibility.
 
-        y_target : torch.Tensor, optional
+        y_target : :class:`~torch.Tensor`, optional
             Not used in a meaningful way, kept for compatibility.
 
 
         Returns
         -------
-        x_rec : torch.Tensor
+        x_rec : :class:`~torch.Tensor`
             Reconstructed gene counts.
         """
         pyro.module("scvi", self)
@@ -323,10 +346,10 @@ class SCVI(nn.Module):
 
         Returns
         -------
-        loc, mu : torch.Tensor
+        loc, mu : :class:`~torch.Tensor`
             Mu of ZINB or Gaussian.
 
-        scale, logits : torch.Tensor
+        scale, logits : :class:`~torch.Tensor`
             Either the variance of the Gaussian or ZI logits for ZINB.
         """
         assert self.reconstruction.endswith("LD")
@@ -359,7 +382,7 @@ class SCVI(nn.Module):
 
         Parameters
         ----------
-        path : str, default: "scvi_params"
+        path : :class:`str`, default: "scvi_params"
             Path to save model parameters.
         """
         torch.save(self.state_dict(), path + "_torch.pth")
@@ -371,11 +394,11 @@ class SCVI(nn.Module):
 
         Parameters
         ----------
-        path : str, default: "scvi_params"
+        path : :class:`str`, default: "scvi_params"
             Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
 
-        map_location : str, optional
-            Specifies where the model should be loaded. See `torch.device` for details.
+        map_location : :class:`str`, optional
+            Specifies where the model should be loaded. See :class:`~torch.device` for details.
         """
         pyro.clear_param_store()
 
@@ -400,42 +423,65 @@ class SCVI(nn.Module):
 
 ## scANVI taken from https://pyro.ai/examples/scanvi.html
 class SCANVI(nn.Module):
-    """Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through `Pyro`.
+    """Supervised scANVI (https://www.embopress.org/doi/full/10.15252/msb.20209620), implemented through :mod:`pyro`.
 
     Parameters
     ----------
-    num_genes : int
+    num_genes : :class:`int`
         Size of the gene space.
 
-    l_loc : float or array-like
+    l_loc : :class:`float` or array_like
         Either a single value for log-mean library size, or a 1D array-like of values if `batch_correction`.
 
-    l_scale : float or array-like
+    l_scale : :class:`float` or array_like
         Either a single value for log-variance library size, or a 1D array-like of values if `batch_correction`.
 
-    num_labels : int
+    num_labels : :class:`int`
         Length of the one-hot encoded condition labels expected in the data.
 
-    hidden_dim : int, default: 128
+    hidden_dim : :class:`int`, default: 128
         Size of the hidden layers throughout the model.
 
-    num_layers : int, default: 2
+    num_layers : :class:`int`, default: 2
         Number of hidden layers between any input and output layer.
 
-    latent_dim : int
+    latent_dim : :class:`int`
         Size of the latent variable `z`.
 
-    alpha : float
+    alpha : :class:`float`
         Factor used to scale the classifier loss.
 
-    scale_factor : float, default: 1.0
+    scale_factor : :class:`float`, default: 1.0
         Factor used to scale and normalize the loss.
 
-    batch_correction : bool, default: False
+    batch_correction : :class:`bool`, default: False
         If `True`, expects batch to be appended to input and corrects for batch.
 
-    reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
+    reconstruction : :class:`Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"]`, default: "ZINB"
         The distribiution assumed to model the input data.
+
+    Methods
+    -------
+    __init__(num_genes, l_loc, l_scale, num_labels, hidden_dim=128, num_layers=2, latent_dim=10, alpha=1.0, scale_factor=1.0, batch_correction=False, reconstruction="ZINB")
+        Constructor for supervised scANVI.
+
+    model(x, y)
+        Generative model for supervised scANVI.
+
+    guide(x, y)
+        Approximate variational posterior for supervised scANVI.
+
+    generate(x, y_source, y_target)
+        Function used post-training for supervised scANVI to facilitate transfer between conditional labels.
+
+    get_weights()
+        Returns interpretable coefficients for latents.
+
+    save(path="scanvi_params")
+        Saves model parameters to disk.
+
+    load(path="scanvi_params", map_location=None)
+        Loads model parameters from disk.
     """
 
     def __init__(
@@ -541,10 +587,10 @@ class SCANVI(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y : torch.Tensor
+        y : :class:`~torch.Tensor`
             One-hot encoded conditional labels.
         """
         pyro.module("scanvi", self)
@@ -662,10 +708,10 @@ class SCANVI(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y : torch.Tensor
+        y : :class:`~torch.Tensor`
             One-hot encoded conditional labels.
         """
         pyro.module("scanvi", self)
@@ -706,13 +752,13 @@ class SCANVI(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y_source : torch.Tensor
+        y_source : :class:`~torch.Tensor`
             One-hot encoded conditional labels for the input.
 
-        y_target : torch.Tensor
+        y_target : :class:`~torch.Tensor`
             One-hot encoded conditional labels for the targets. Must be the same size in the first dimension as input.
         """
         pyro.module("scanvi", self)
@@ -807,10 +853,10 @@ class SCANVI(nn.Module):
 
         Returns
         -------
-        loc, mu : torch.Tensor
+        loc, mu : :class:`~torch.Tensor`
             Mu of ZINB or Gaussian.
 
-        scale, logits : torch.Tensor
+        scale, logits : :class:`~torch.Tensor`
             Either the variance of the Gaussian or ZI logits for ZINB.
         """
         assert self.reconstruction.endswith("LD")
@@ -843,7 +889,7 @@ class SCANVI(nn.Module):
 
         Parameters
         ----------
-        path : str, default: "scanvi_params"
+        path : :class:`str`, default: "scanvi_params"
             Path to save model parameters.
         """
         torch.save(self.state_dict(), path + "_torch.pth")
@@ -855,11 +901,11 @@ class SCANVI(nn.Module):
 
         Parameters
         ----------
-        path : str, default: "scanvi_params"
+        path : :class:`str`, default: "scanvi_params"
             Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
 
-        map_location : str, optional
-            Specifies where the model should be loaded. See `torch.device` for details.
+        map_location : :class:`str`, optional
+            Specifies where the model should be loaded. See :class:`~torch.device` for details.
         """
         pyro.clear_param_store()
 
@@ -887,56 +933,82 @@ class Patches(nn.Module):
 
     Parameters
     ----------
-    num_genes : int
+    num_genes : :class:`int`
         Size of the gene space.
 
-    l_loc : float or array-like
+    l_loc : :class:`float` or array_like
         Either a single value for log-mean library size, or a 1D array-like of values if `batch_correction`.
 
-    l_scale : float or array-like
+    l_scale : :class:`float` or array_like
         Either a single value for log-variance library size, or a 1D array-like of values if `batch_correction`.
 
-    num_labels : int
+    num_labels : :class:`int`
         Total number of attributes present in the data.
 
-    len_attrs : array-like
+    len_attrs : array_like
         1D Array-like of `int`. Specifies how many attributes per condition class.
 
-    betas : array-like, optional
+    betas : array_like, optional
         Scales the adversarial & classifier loss for each condition class.
 
-    w_loc : array-like, optional
+    w_loc : array_like, optional
         Means for the conditionally selected multivariate gaussians to parameterize each `w_k`.
 
-    w_scale : array-like, optional
+    w_scale : array_like, optional
         Stds for the conditionally selected multivariate gaussians to parameterize each `w_k`.
 
-    w_dim : int, default: 2
+    w_dim : :class:`int`, default: 2
         Size of each `w_k` for the attributes.
 
-    latent_dim : int
+    latent_dim : :class:`int`
         Size of the latent variable `z`.
 
-    num_layers : int, default: 2
+    num_layers : :class:`int`, default: 2
         Number of hidden layers between any input and output layer.
 
-    hidden_dim : int, default: 128
+    hidden_dim : :class:`int`, default: 128
         Size of the hidden layers throughout the model.
 
-    scale_factor : float, default: 1.0
+    scale_factor : :class:`float`, default: 1.0
         Factor used to scale and normalize the loss.
 
-    batch_correction : bool, default: False
+    batch_correction : :class:`bool`, default: False
         If `True`, expects batch to be appended to input and corrects for batch.
 
-    ld_sparsity : bool, default: False
+    ld_sparsity : :class:`bool`, default: False
         If `True`, adds L1 loss for attribute specific latents. Can only be used with linear decoders.
 
-    ld_normalize : bool, default: True
+    ld_normalize : :class:`bool`, default: True
         If `True`, adds bias term to decoder. Can only be used with linear decoders.
 
-    reconstruction : {"ZINB", "Normal", "ZINB_LD", "Normal_LD"}
+    reconstruction : :class:`Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"]`, default: "ZINB"
         The distribiution assumed to model the input data.
+
+    Methods
+    -------
+    __init__(num_genes, l_loc, l_scale, num_labels, len_attrs, betas=None, w_loc=None, w_scale=None, w_dim=2, latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=False, ld_normalize=True, reconstruction="ZINB")
+        Constructor for Patches.
+
+    model(x, y)
+        Generative model for Patches.
+
+    guide(x, y)
+        Approximate variational posterior for Patches.
+
+    adversarial(x,y)
+        Adversarial loss for Patches.
+
+    generate(x, y_source, y_target)
+        Function used post-training for Patches to transfer between conditional labels.
+
+    get_weights()
+        Returns interpretable coefficients for latents.
+
+    save(path="scanvi_params")
+        Saves model parameters to disk.
+
+    load(path="scanvi_params", map_location=None)
+        Loads model parameters from disk.
     """
 
     @staticmethod
@@ -1105,10 +1177,10 @@ class Patches(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y : torch.Tensor
+        y : :class:`~torch.Tensor`
             One-hot encoded and concatenated attribute labels.
         """
         pyro.module("patches", self)
@@ -1252,10 +1324,10 @@ class Patches(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y : torch.Tensor
+        y : :class:`~torch.Tensor`
             One-hot encoded and concatenated attribute labels.
         """
         pyro.module("patches", self)
@@ -1318,15 +1390,15 @@ class Patches(nn.Module):
                 )  # sparsity
 
     # Adverserial
-    def adverserial(self, x, y):
+    def adversarial(self, x, y):
         """Adversarial loss for Patches.
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y : torch.Tensor
+        y : :class:`~torch.Tensor`
             One-hot encoded and concatenated attribute labels.
         """
         pyro.module("patches", self)
@@ -1373,13 +1445,13 @@ class Patches(nn.Module):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : :class:`~torch.Tensor`
             Input gene counts.
 
-        y_source : torch.Tensor
+        y_source : :class:`~torch.Tensor`
             One-hot encoded and concatenated attribute labels for the input.
 
-        y_target : torch.Tensor
+        y_target : :class:`~torch.Tensor`
             One-hot encoded and concatenated attribute labels for the target. Must be the same size in the first dimension as input.
         """
         pyro.module("patches", self)
@@ -1496,10 +1568,10 @@ class Patches(nn.Module):
 
         Returns
         -------
-        loc, mu : torch.Tensor
+        loc, mu : :class:`~orch.Tensor`
             Mu of ZINB or Gaussian.
 
-        scale, logits : torch.Tensor
+        scale, logits : :class:`~torch.Tensor`
             Either the variance of the Gaussian or ZI logits for ZINB.
         """
         assert self.reconstruction.endswith("LD")
@@ -1532,7 +1604,7 @@ class Patches(nn.Module):
 
         Parameters
         ----------
-        path : str, default: "patches_params"
+        path : :class:`str`, default: "patches_params"
             Path to save model parameters.
         """
         torch.save(self.state_dict(), path + "_torch.pth")
@@ -1544,11 +1616,11 @@ class Patches(nn.Module):
 
         Parameters
         ----------
-        path : str, default: "parches_params"
+        path : :class:`str`, default: "parches_params"
             Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth` or any such variant.
 
-        map_location : str, optional
-            Specifies where the model should be loaded. See `torch.device` for details.
+        map_location : :class:`str`, optional
+            Specifies where the model should be loaded. See :class:`~torch.device` for details.
         """
         pyro.clear_param_store()
 
