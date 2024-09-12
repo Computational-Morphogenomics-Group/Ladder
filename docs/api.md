@@ -41,13 +41,13 @@
 .. autosummary::
     :toctree: generated
 
-    metrics.get_normalized_profile
-    metrics.gen_profile_reproduction
-    metrics.get_reproduction_error
-    metrics.calc_asw
-    metrics.kmeans_ari
-    metrics.kmeans_nmi
-    metrics.knn_error
+    scripts.get_normalized_profile
+    scripts.gen_profile_reproduction
+    scripts.get_reproduction_error
+    scripts.calc_asw
+    scripts.kmeans_ari
+    scripts.kmeans_nmi
+    scripts.knn_error
 ```
 
 ### Training
@@ -59,9 +59,9 @@
 .. autosummary::
     :toctree: generated
 
-    training.get_device
-    training.train_pyro
-    training.train_pyro_disjoint_param
+    scripts.get_device
+    scripts.train_pyro
+    scripts.train_pyro_disjoint_param
 ```
 
 ### Workflow API
@@ -73,7 +73,7 @@
 .. autosummary::
     :toctree: generated
 
-    workflows.BaseWorkflow
-    workflows.InterpretableWorkflow
-    workflows.CrossConditionWorkflow
+    scripts.BaseWorkflow
+    scripts.InterpretableWorkflow
+    scripts.CrossConditionWorkflow
 ```
