@@ -73,7 +73,7 @@ def train_pyro(
         Device object to run models on.
 
     optim_args : :class:`dict`, default: {"optimizer": opt.Adam,"optim_args": {"lr": 1e-3, "eps": 1e-2},"gamma": 1,"milestones": [1e10]}
-        Arguments to be passed to `MultiStepLR` for fine tuning if needed.
+        Arguments to be passed to `:class:`pyro.optim.MultiStepLR`  for fine tuning if needed.
 
     Returns
     -------
@@ -160,10 +160,9 @@ def train_pyro_disjoint_param(
     convergence_window: int = 15,
     verbose: bool = True,
     device: torch.device = get_device(),
-    lr: float = 1e-2,
-    eps: float = 1e-2,
-    betas: tuple = (0.90, 0.999),
     warmup: int = 0,
+    classifier_aggression: int = 0,
+    optim_args: dict = None,
 ):
     """Runner for Patches, but can be used for other adversarial models.
 
@@ -198,17 +197,14 @@ def train_pyro_disjoint_param(
     device : :class:`~torch.device`
         Device object to run models on.
 
-    lr : :class:`float`, default: 1e-2
-        Learning rate for the model.
-
-    eps : :class:`float`, default: 1e-2
-        Eps to be passed to the Adam optimizer.
-
-    betas : :class:`tuple`, default: (0.90, 0.999)
-        Betas to be passed to the Adam optimizer.
-
     warmup : :class:`int`, default: 0
         Number of epochs to run the classifier before running the entire model.
+
+    classifier_aggression : :class:`int`, default: 0
+        Number of epochs the classifier takes independently between jointly trained epochs.
+
+    optim_args : :class:`dict`, default: {"optim_args": {"lr": 1e-3, "eps": 1e-2},"gamma": 1,"milestones": [1e10]}
+        Arguments to be passed to `:class:`torch.optim.lr_scheduler.MultiStepLR` for fine tuning if needed.
 
     Returns
     -------
@@ -227,6 +223,14 @@ def train_pyro_disjoint_param(
     params_c_names : :class:`set`
         :class:`str` set containing model parameter names for the classifier.
     """
+    if optim_args is None:
+        optim_args = {
+            # Additional "optimizer" passed here by workflows, ignored,
+            "optim_args": {"lr": 1e-2, "eps": 1e-2, "betas": (0.9, 0.999)},
+            "gamma": 1,
+            "milestones": [1e10],
+        }
+
     print(f"Using device: {device}\n")
 
     model = model.double().to(device)
@@ -265,11 +269,25 @@ def train_pyro_disjoint_param(
         if "classifier_z" in site["name"]
     }
 
-    optimizer_nonc = torch.optim.Adam(params_nonc, lr=lr, eps=eps, betas=betas)
-    optimizer_c = torch.optim.Adam(params_c, lr=lr, eps=eps, betas=betas)
+    optimizer_nonc, optimizer_c = torch.optim.Adam(
+        params_nonc,
+        lr=optim_args["optim_args"]["lr"],
+        eps=optim_args["optim_args"]["eps"],
+        betas=optim_args["optim_args"]["betas"],
+    ), torch.optim.Adam(
+        params_c,
+        lr=optim_args["optim_args"]["lr"],
+        eps=optim_args["optim_args"]["eps"],
+        betas=optim_args["optim_args"]["betas"],
+    )
+
+    scheduler_nonc, scheduler_c = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer_nonc, milestones=optim_args["milestones"], gamma=optim_args["gamma"]
+    ), torch.optim.lr_scheduler.MultiStepLR(
+        optimizer_c, milestones=optim_args["milestones"], gamma=optim_args["gamma"]
+    )
 
     # Train loop
-
     if verbose:
         num_epochs = range(num_epochs)
     else:
@@ -301,6 +319,17 @@ def train_pyro_disjoint_param(
                 loss.backward()
                 optimizer_nonc.step()
 
+        # Aggressive training for the classifier
+        for _k in range(classifier_aggression):
+            for x, y, _ in train_loader:
+                x, y = x.to(device), y.to(device)
+                log_prob_loss = model.adversarial(x, y).mean()
+                prob_losses.append(log_prob_loss.detach().cpu())
+
+                optimizer_c.zero_grad()
+                log_prob_loss.backward()
+                optimizer_c.step()
+
         # Testing
         model.eval()
 
@@ -321,16 +350,20 @@ def train_pyro_disjoint_param(
         loss_track_train.append(np.mean(losses))
         loss_track_test.append(np.mean(losses_test))
 
-        min_count += 1
+        if epoch + 1 > warmup:
+            scheduler_nonc.step()
+            scheduler_c.step()
 
-        if (np.min(losses_min) - np.mean(losses_test)) > convergence_threshold:
-            losses_min.append(np.mean(losses_test))
-            min_count = 0
+            min_count += 1
 
-        if min_count == convergence_window:
-            print(
-                f"Convergence detected with last {convergence_window} epochs improvement {losses_min[-1] - np.min(loss_track_test[-convergence_window:])}, ending training..."
-            )
-            break
+            if (np.min(losses_min) - np.mean(losses_test)) > convergence_threshold:
+                losses_min.append(np.mean(losses_test))
+                min_count = 0
+
+            if min_count == convergence_window:
+                print(
+                    f"Convergence detected with last {convergence_window} epochs improvement {losses_min[-1] - np.min(loss_track_test[-convergence_window:])}, ending training..."
+                )
+                break
 
     return model, loss_track_train, loss_track_test, params_nonc_names, params_c_names

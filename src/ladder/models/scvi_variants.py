@@ -960,8 +960,14 @@ class Patches(nn.Module):
     w_dim : :class:`int`, default: 2
         Size of each `w_k` for the attributes.
 
+    w_kl : :class:`float`, default: 1.0
+        KL weight for conditional latents.
+
     latent_dim : :class:`int`
         Size of the latent variable `z`.
+
+    z_kl : :class:`float`, default: 1.0
+        KL weight for common latent.
 
     num_layers : :class:`int`, default: 2
         Number of hidden layers between any input and output layer.
@@ -1038,7 +1044,9 @@ class Patches(nn.Module):
         w_loc=None,
         w_scale=None,
         w_dim: int = 2,
+        w_kl: float = 1.0,
         latent_dim: int = 10,
+        z_kl: float = 1.0,
         num_layers: int = 2,
         hidden_dim: int = 128,
         scale_factor: float = 1.0,
@@ -1077,6 +1085,8 @@ class Patches(nn.Module):
 
         self.w_scales = w_scale  # Prior scales for attribute being 0,1 (indices correspond to attribute value)
 
+        self.w_kl = w_kl  # KL weight for conditionals
+        self.z_kl = z_kl  # KL weight for common
         self.batch_correction = batch_correction  # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction  # Distribution for the reconstruction
         self.sparsity = ld_sparsity  # Sparsity, used only with LD
@@ -1192,9 +1202,11 @@ class Patches(nn.Module):
         )
 
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
-            z = pyro.sample(
-                "z", dist.Normal(0, x.new_ones(self.latent_dim)).to_event(1)
-            )
+
+            with poutine.scale(None, self.z_kl):
+                z = pyro.sample(
+                    "z", dist.Normal(0, x.new_ones(self.latent_dim)).to_event(1)
+                )
 
             # Keep tracked attributes in a list
             y_s = []
@@ -1219,7 +1231,8 @@ class Patches(nn.Module):
                 dim=-1,
             )
 
-            w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+            with poutine.scale(None, self.w_kl):
+                w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
 
             zw = torch.cat([z, w], dim=-1)
 

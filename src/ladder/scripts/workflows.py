@@ -444,26 +444,17 @@ Model: {self.model_type}
             if key not in optim_args.keys():
                 optim_args[key] = self.OPT_DEFAULTS[key]
 
-        # Grab model optimizer
-        match self.model_type:
-            case self.model_type if self.model_type in self.OPT_CLASS1:
-                self.optim_args = {
-                    "optimizer": torch.optim.Adam,
-                    "optim_args": {
-                        "lr": optim_args["lr"],
-                        "eps": optim_args["eps"],
-                        "betas": optim_args["betas"],
-                    },
-                    "gamma": optim_args["gamma"],
-                    "milestones": optim_args["milestones"],
-                }
-
-            case self.model_type if self.model_type in self.OPT_CLASS2:
-                self.optim_args = {
-                    "lr": optim_args["lr"],
-                    "eps": optim_args["eps"],
-                    "betas": optim_args["betas"],
-                }
+        # Fill optim args attr
+        self.optim_args = {
+            "optimizer": torch.optim.Adam,
+            "optim_args": {
+                "lr": optim_args["lr"],
+                "eps": optim_args["eps"],
+                "betas": optim_args["betas"],
+            },
+            "gamma": optim_args["gamma"],
+            "milestones": optim_args["milestones"],
+        }
 
         # Clear whatever is unused
         self._clear_bad_optim_args()
@@ -479,6 +470,7 @@ Model: {self.model_type}
         convergence_threshold: float = 1e-3,
         convergence_window: int = 30,
         classifier_warmup: int = 0,
+        classifier_aggression: int = 0,
         params_save_path: str = None,
     ):
         """Runs the model on the attached data object.
@@ -496,6 +488,9 @@ Model: {self.model_type}
 
         classifier_warmup : :class:`int`, default: 0
             Number of epochs to run the classifier before running the entire model.
+
+        classifier_aggression : :class:`int`, default: 0
+            Number of epochs the classifier takes independently between jointly trained epochs. Used for Patches.
 
         params_save_path : :class:`str`, optional
             If provided, saves the model to the specified path.
@@ -538,9 +533,9 @@ Model: {self.model_type}
                         num_epochs=max_epochs,
                         convergence_threshold=convergence_threshold,
                         convergence_window=convergence_window,
-                        lr=self.optim_args["lr"],
-                        eps=self.optim_args["eps"],
                         warmup=classifier_warmup,
+                        classifier_aggression=classifier_aggression,
+                        optim_args=self.optim_args,
                     )
                 )
 
