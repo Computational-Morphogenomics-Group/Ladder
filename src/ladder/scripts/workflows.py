@@ -619,6 +619,11 @@ Model: {self.model_type}
                 self.anndata.obsm["patches_w_latent"] = w_latent.detach().numpy()
                 self.anndata.obsm["patches_z_latent"] = z_latent.detach().numpy()
 
+                if self.reconstruction not in ["ZINB_LD", "Normal_LD"]:
+                    self.anndata.obsm["patches_rho_latent"] = (
+                        rho_latent.detach().numpy()
+                    )
+
         if self.verbose:
             print("Written embeddings to object 'anndata.obsm' under workflow.")
 
