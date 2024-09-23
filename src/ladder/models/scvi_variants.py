@@ -167,28 +167,33 @@ class SCVI(nn.Module):
                 "z", dist.Normal(0, x.new_ones(self.latent_dim)).to_event(1)
             )
 
-            # If batch correction, pick corresponding loc scale
-            if self.batch_correction:
-                l_loc, l_scale = (
-                    torch.tensor(
-                        self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
+            if "ZINB" in self.reconstruction:
+                # If batch correction, pick corresponding loc scale
+                if self.batch_correction:
+                    l_loc, l_scale = (
+                        torch.tensor(
+                            self.l_loc[
+                                x[..., -1].detach().clone().cpu().type(torch.int)
+                            ]
+                        )
+                        .reshape(-1, 1)
+                        .to(x.device),
+                        torch.tensor(
+                            self.l_scale[
+                                x[..., -1].detach().clone().cpu().type(torch.int)
+                            ]
+                        )
+                        .reshape(-1, 1)
+                        .to(x.device),
                     )
-                    .reshape(-1, 1)
-                    .to(x.device),
-                    torch.tensor(
-                        self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
-                    )
-                    .reshape(-1, 1)
-                    .to(x.device),
-                )
 
-            # Single size factor
-            else:
-                l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(
-                    1
-                )
+                # Single size factor
+                else:
+                    l_loc, l_scale = self.l_loc * x.new_ones(
+                        1
+                    ), self.l_scale * x.new_ones(1)
 
-            l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+                l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
             # If batch corrected, use batch to go back. Else skip
             if self.batch_correction:
@@ -257,7 +262,9 @@ class SCVI(nn.Module):
             # If batch corrected, this is expression appended with batch
             z_loc, z_scale, l_loc, l_scale = self.zl_encoder(x)
 
-            pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+            if "ZINB" in self.reconstruction:
+                pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+
             pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
     # Generate
@@ -612,28 +619,33 @@ class SCANVI(nn.Module):
 
             z1_y = torch.cat([z1, y], dim=-1)
 
-            # If batch correction, pick corresponding loc scale
-            if self.batch_correction:
-                l_loc, l_scale = (
-                    torch.tensor(
-                        self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
+            if "ZINB" in self.reconstruction:
+                # If batch correction, pick corresponding loc scale
+                if self.batch_correction:
+                    l_loc, l_scale = (
+                        torch.tensor(
+                            self.l_loc[
+                                x[..., -1].detach().clone().cpu().type(torch.int)
+                            ]
+                        )
+                        .reshape(-1, 1)
+                        .to(x.device),
+                        torch.tensor(
+                            self.l_scale[
+                                x[..., -1].detach().clone().cpu().type(torch.int)
+                            ]
+                        )
+                        .reshape(-1, 1)
+                        .to(x.device),
                     )
-                    .reshape(-1, 1)
-                    .to(x.device),
-                    torch.tensor(
-                        self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
-                    )
-                    .reshape(-1, 1)
-                    .to(x.device),
-                )
 
-            # Single size factor
-            else:
-                l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(
-                    1
-                )
+                # Single size factor
+                else:
+                    l_loc, l_scale = self.l_loc * x.new_ones(
+                        1
+                    ), self.l_scale * x.new_ones(1)
 
-            l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+                l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
             match self.reconstruction:
                 case "ZINB":
@@ -719,7 +731,8 @@ class SCANVI(nn.Module):
         with pyro.plate("batch", len(x)), poutine.scale(scale=self.scale_factor):
             z2_loc, z2_scale, l_loc, l_scale = self.z2l_encoder(x)
 
-            pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+            if "ZINB" in self.reconstruction:
+                pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
             if self.reconstruction in ["ZINB_LD", "Normal_LD"]:
                 z2 = pyro.sample(
@@ -969,6 +982,9 @@ class Patches(nn.Module):
     z_kl : :class:`float`, default: 1.0
         KL weight for common latent.
 
+    recon_weight : :class:`float`, default: 1.0
+        Weight for reconstructin error.
+
     num_layers : :class:`int`, default: 2
         Number of hidden layers between any input and output layer.
 
@@ -1047,6 +1063,7 @@ class Patches(nn.Module):
         w_kl: float = 1.0,
         latent_dim: int = 10,
         z_kl: float = 1.0,
+        recon_weight: float = 1.0,
         num_layers: int = 2,
         hidden_dim: int = 128,
         scale_factor: float = 1.0,
@@ -1087,6 +1104,7 @@ class Patches(nn.Module):
 
         self.w_kl = w_kl  # KL weight for conditionals
         self.z_kl = z_kl  # KL weight for common
+        self.recon_weight = recon_weight  # Weight for recon
         self.batch_correction = batch_correction  # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction  # Distribution for the reconstruction
         self.sparsity = ld_sparsity  # Sparsity, used only with LD
@@ -1151,6 +1169,7 @@ class Patches(nn.Module):
             out_dim=self.latent_dim + (self.w_dim * self.num_labels),
             last_config="+lognormal",
             dist_config="+lognormal",
+            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
         )
 
         for i in range(len(self.len_attrs)):
@@ -1163,6 +1182,7 @@ class Patches(nn.Module):
                     out_dim=self.len_attrs[i],
                     last_config="default",
                     dist_config="classifier",
+                    keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
                 ),
             )
 
@@ -1172,6 +1192,7 @@ class Patches(nn.Module):
             out_dim=self.latent_dim,
             last_config="reparam",
             dist_config="normal",
+            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
         )
         self.w_encoder = _make_func(
             in_dims=self.latent_dim + (self.w_dim * self.num_labels) + self.num_labels,
@@ -1179,6 +1200,7 @@ class Patches(nn.Module):
             out_dim=self.w_dim * self.num_labels,
             last_config="reparam",
             dist_config="normal",
+            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
         )
 
     # Model
@@ -1236,28 +1258,33 @@ class Patches(nn.Module):
 
             zw = torch.cat([z, w], dim=-1)
 
-            # If batch correction, pick corresponding loc scale
-            if self.batch_correction:
-                l_loc, l_scale = (
-                    torch.tensor(
-                        self.l_loc[x[..., -1].detach().clone().cpu().type(torch.int)]
+            if "ZINB" in self.reconstruction:
+                # If batch correction, pick corresponding loc scale
+                if self.batch_correction:
+                    l_loc, l_scale = (
+                        torch.tensor(
+                            self.l_loc[
+                                x[..., -1].detach().clone().cpu().type(torch.int)
+                            ]
+                        )
+                        .reshape(-1, 1)
+                        .to(x.device),
+                        torch.tensor(
+                            self.l_scale[
+                                x[..., -1].detach().clone().cpu().type(torch.int)
+                            ]
+                        )
+                        .reshape(-1, 1)
+                        .to(x.device),
                     )
-                    .reshape(-1, 1)
-                    .to(x.device),
-                    torch.tensor(
-                        self.l_scale[x[..., -1].detach().clone().cpu().type(torch.int)]
-                    )
-                    .reshape(-1, 1)
-                    .to(x.device),
-                )
 
-            # Single size factor
-            else:
-                l_loc, l_scale = self.l_loc * x.new_ones(1), self.l_scale * x.new_ones(
-                    1
-                )
+                # Single size factor
+                else:
+                    l_loc, l_scale = self.l_loc * x.new_ones(
+                        1
+                    ), self.l_scale * x.new_ones(1)
 
-            l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+                l = pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
             # Part to modify if changing the decoder
             match self.reconstruction:
@@ -1325,11 +1352,12 @@ class Patches(nn.Module):
                     x_scale = softplus(x_scale)
                     x_dist = dist.Normal(x_loc, x_scale)
 
-            # If batch corrected, we expect last index to be batch
-            if self.batch_correction:
-                pyro.sample("x", x_dist.to_event(1), obs=x[..., :-1])
-            else:
-                pyro.sample("x", x_dist.to_event(1), obs=x)
+            with poutine.scale(None, self.recon_weight):
+                # If batch corrected, we expect last index to be batch
+                if self.batch_correction:
+                    pyro.sample("x", x_dist.to_event(1), obs=x[..., :-1])
+                else:
+                    pyro.sample("x", x_dist.to_event(1), obs=x)
 
     # Guide
     def guide(self, x, y):
@@ -1349,7 +1377,8 @@ class Patches(nn.Module):
             # Variational for rho & l
             rho_loc, rho_scale, l_loc, l_scale = self.rho_l_encoder(x)
 
-            pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
+            if "ZINB" in self.reconstruction:
+                pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
 
             if self.reconstruction in ["ZINB_LD", "Normal_LD"]:
                 rho = pyro.sample(
@@ -1420,7 +1449,6 @@ class Patches(nn.Module):
             # Variational for rho & l
             rho_loc, rho_scale, l_loc, l_scale = self.rho_l_encoder(x)
 
-            pyro.sample("l", dist.LogNormal(l_loc, l_scale).to_event(1))
             rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
 
             # Variational for w & z

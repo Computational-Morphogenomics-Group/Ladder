@@ -51,7 +51,7 @@ def _broadcast_inputs(input_args) -> list:
     return input_args
 
 
-def _make_fc(dims) -> nn.Sequential:
+def _make_fc(dims, keep_last_batch_norm=False) -> nn.Sequential:
     """
     Helper to make FC layers in quick succession for hidden layers.
 
@@ -61,6 +61,9 @@ def _make_fc(dims) -> nn.Sequential:
     ----------
     dims : array-like
         Array-like of :class:`int` specifying the sizes for layers. `dims[0], dims[-1]` are input and output respectively.
+
+    keep_last_batch_norm : :class:`bool`, default: False
+        Argument to decide whether to keep last BatchNorm1d layer.
 
     Returns
     -------
@@ -72,7 +75,8 @@ def _make_fc(dims) -> nn.Sequential:
         layers.append(nn.Linear(in_dim, out_dim))
         layers.append(nn.BatchNorm1d(out_dim))
         layers.append(nn.ReLU())
-    return nn.Sequential(*layers[:-1])
+
+    return nn.Sequential(*layers[: (-2 + int(keep_last_batch_norm))])
 
 
 # Helper to make functions between variables
@@ -99,6 +103,9 @@ class _make_func(nn.Module):
 
     dist_config : :class`Literal["normal", "zinb", "categorical", "+lognormal", "classifier"]`, default: "normal"
         The distribution for the parameter that corresponds to the modelled layer.
+
+    keep_last_batch_norm : :class:`bool`, default: False
+        Argument to decide whether to keep last BatchNorm1d layer. Passed to :function:`_make_fc`.
 
     Notes
     -----
@@ -148,6 +155,7 @@ class _make_func(nn.Module):
         dist_config: Literal[
             "normal", "zinb", "categorical", "+lognormal", "classifier"
         ] = "normal",
+        keep_last_batch_norm: bool = False,
     ):
         super().__init__()
 
@@ -176,5 +184,5 @@ class _make_func(nn.Module):
             case "+lognormal":  # For counts
                 f_func = self._nl_forward
 
-        self.fc = _make_fc(dims)
+        self.fc = _make_fc(dims, keep_last_batch_norm)
         self.forward = f_func

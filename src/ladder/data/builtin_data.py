@@ -26,22 +26,6 @@ DATA_PATHS = {
     ],
 }
 
-# Static parameter paths, update when necessary
-PARAM_PATHS = {
-    "SCVI": (
-        "https://drive.google.com/uc?export=download&id=1p85P0o0aJ47tWJc7SoWycjWKBdqFOy9i",
-        "https://drive.google.com/uc?export=download&id=1RRJA_UdRogJptyama3_-ViCWb1TwBzLI",
-    ),
-    "SCANVI": (
-        "https://drive.google.com/uc?export=download&id=1YUZUtGqwQrreG-qUvgb3WGTj3ZB_WrAN",
-        "https://drive.google.com/uc?export=download&id=1d2m1bvN8hzAP4tL-GxecX8-bd1OBOWJq",
-    ),
-    "Patches": (
-        "https://drive.google.com/uc?export=download&id=1Si2HyvArOKNh0efn2DLg2F7d6RjcY-4S",
-        "https://drive.google.com/uc?export=download&id=1zX1K7oyBKF9ArQ7vUpqk1ehrO81a6rHO",
-    ),
-}
-
 
 def _download_data(
     response: requests.Response,
@@ -71,6 +55,7 @@ def _download_data(
 
     ## Unexpected
     else:
+        print(response.__dict__)
         raise Exception("Object not found at URL")
 
 
