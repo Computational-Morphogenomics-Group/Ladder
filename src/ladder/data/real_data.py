@@ -523,6 +523,11 @@ def distrib_dataset(
             ]
         )
 
+        # Additional typecasting to expect a single class (TensorDataset)
+        train_set, test_set = utils.TensorDataset(*train_set[:]), utils.TensorDataset(
+            *test_set[:]
+        )
+
         train_loader, test_loader = (
             utils.DataLoader(train_set, batch_size=batch_size, shuffle=True, **kwargs),
             utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs),
