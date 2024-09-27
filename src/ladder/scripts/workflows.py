@@ -376,7 +376,7 @@ Model: {self.model_type}
         batch_key : :class:`str`, optional
             Defines the workflow to be used. Affects model structure. Can later be accessed with same named attribute.
 
-        cell_type_label_key : :class:`str, optional
+        cell_type_label_key : :class:`str`, optional
             Optional cell type labels in :attr:`~anndata.AnnData.obs`, required if cell-type specific evaluation is desired.
 
         minibatch_size : :class:`int`, default: 128
@@ -666,7 +666,7 @@ Model: {self.model_type}
             Key from :attr:`~BaseWorkflow.levels` to subset cells for a specific condition before evaluating reconstruction.
 
         cell_type : :class:`str`, optional
-            Requires :attr`~BaseWorkflow.cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating reconstruction.
+            Requires :attr:`~BaseWorkflow.cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating reconstruction.
 
         n_iter : :class:`int`, default: 5
             Number of times to repeat the generative process.
@@ -761,7 +761,7 @@ Model: {self.model_type}
 class InterpretableWorkflow(BaseWorkflow):
     """Interpretable workflow for training with a linear decoder.
 
-    Inherits `BaseWorkflow` and adds functionalities desired from
+    Inherits :class:`BaseWorkflow` and adds functionalities desired from
     running the interpretable models with linear decoders.
 
     Parameters
