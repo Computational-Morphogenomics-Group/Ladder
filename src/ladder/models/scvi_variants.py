@@ -1481,7 +1481,7 @@ class Patches(nn.Module):
 
     # Function to move points between conditions
     @torch.no_grad()
-    def generate(self, x, y_source=None, y_target=None):
+    def generate(self, x, y_source=None, y_target=None, w_custom=None):
         """Function used post-training for Patches to facilitate transfer between conditional labels.
 
         Parameters
@@ -1517,16 +1517,21 @@ class Patches(nn.Module):
 
             attr_track = next_track
 
-        w_loc = torch.concat(
-            [self._concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim=-1
-        )
-        w_scale = torch.concat(
-            [self._concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s], dim=-1
-        )
+        if w_custom is None:
+            w_loc = torch.concat(
+                [self._concat_lat_dims(y, self.w_locs, self.w_dim) for y in y_s], dim=-1
+            )
+            w_scale = torch.concat(
+                [self._concat_lat_dims(y, self.w_scales, self.w_dim) for y in y_s],
+                dim=-1,
+            )
+
+            w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+
+        else:
+            w = w_custom
 
         z_loc, z_scale = self.z_encoder(rho_enc)
-
-        w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
         z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
         ## Decode
