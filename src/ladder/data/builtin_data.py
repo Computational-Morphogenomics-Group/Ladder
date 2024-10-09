@@ -1,9 +1,13 @@
-#######################################
-### Functions to download test data ###
-#######################################
+"""The builtin_data module houses the functions that are necessary for tutorials.
 
-import os, requests
+The data provided in this module are needed for specific tutorials, and
+are a good place to start when learning the modules.
+"""
+
+import os
 from typing import Literal
+
+import requests
 from tqdm import tqdm
 
 # Static data paths, update when necessary
@@ -22,22 +26,6 @@ DATA_PATHS = {
     ],
 }
 
-# Static parameter paths, update when necessary
-PARAM_PATHS = {
-    "SCVI": (
-        "https://drive.google.com/uc?export=download&id=1p85P0o0aJ47tWJc7SoWycjWKBdqFOy9i",
-        "https://drive.google.com/uc?export=download&id=1RRJA_UdRogJptyama3_-ViCWb1TwBzLI",
-    ),
-    "SCANVI": (
-        "https://drive.google.com/uc?export=download&id=1YUZUtGqwQrreG-qUvgb3WGTj3ZB_WrAN",
-        "https://drive.google.com/uc?export=download&id=1d2m1bvN8hzAP4tL-GxecX8-bd1OBOWJq",
-    ),
-    "Patches": (
-        "https://drive.google.com/uc?export=download&id=1Si2HyvArOKNh0efn2DLg2F7d6RjcY-4S",
-        "https://drive.google.com/uc?export=download&id=1zX1K7oyBKF9ArQ7vUpqk1ehrO81a6rHO",
-    ),
-}
-
 
 def _download_data(
     response: requests.Response,
@@ -46,7 +34,6 @@ def _download_data(
 ):
     ## Good
     if response.status_code == 200 and not smoke_test:
-
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
         # Write with progress bar
@@ -62,20 +49,38 @@ def _download_data(
 
         print(f"Object saved at {save_path}")
 
-    ## Unexpected, means download link broke
+    ## Catch test
+    elif smoke_test:
+        pass
+
+    ## Unexpected
     else:
-        raise Exception(f"Object not found at URL for {dataset}")
+        print(response.__dict__)
+        raise Exception("Object not found at URL")
 
 
 def get_data(
     dataset: Literal["Vu", "Ji", "Mascharak"],
     save_path: str = "./data/",
     smoke_test: bool = False,
-):
-    """
-    Used to fetch data for tutorials.
-    """
+) -> None:
+    """Used to download data for tutorials.
 
+    Parameters
+    ----------
+    dataset : :class:`Literal["Vu", "Ji", "Mascharak"]`
+        Specifies which dataset is to be downloaded.
+
+    save_path : :class:`str`, default: "./data/"
+        Specifies the directory in which the dataset will be saved. Defaults to `./data/`.
+
+    smoke_test : :class:`bool`, default: False
+        Used when testing to pass through without actually unpacking the response from server.
+
+    Returns
+    -------
+    None
+    """
     assert dataset in DATA_PATHS.keys(), f"No link found for {dataset}"
 
     # Reorganize param paths

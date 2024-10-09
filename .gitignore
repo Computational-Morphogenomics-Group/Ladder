@@ -16,8 +16,9 @@ __pycache__/
 /node_modules/
 
 # docs
-/docs/generated/
+/docs/api/generated/
 /docs/_build/
+*.zip
 
 # Downloaded data
 /data/

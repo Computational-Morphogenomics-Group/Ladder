@@ -1,2 +1,2 @@
-from .scvi_variants import SCVI, SCANVI, Patches
-from .basics import _split_in_half, _broadcast_inputs, _make_fc, _make_func
+from .basics import _broadcast_inputs, _make_fc, _make_func, _split_in_half
+from .scvi_variants import SCANVI, SCVI, Patches

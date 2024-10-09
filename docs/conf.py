@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE / "extensions"))
 
 # NOTE: If you installed your project in editable mode, this might be stale.
 #       If this is the case, reinstall it to refresh the metadata
-info = metadata("ladder")
+info = metadata("scladder")
 project_name = info["Name"]
 author = info["Author"]
 copyright = f"{datetime.now():%Y}, {author}."
@@ -70,6 +70,10 @@ napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
 napoleon_use_rtype = True  # having a separate entry generally helps readability
 napoleon_use_param = True
+napoleon_type_aliases = {
+    "array-like": ":term:`array-like <array_like>`",
+    "array_like": ":term:`array_like`",
+}
 myst_heading_anchors = 6  # create anchors for h1-h6
 myst_enable_extensions = [
     "amsmath",
@@ -96,7 +100,11 @@ intersphinx_mapping = {
     "anndata": ("https://anndata.readthedocs.io/en/stable/", None),
     "scanpy": ("https://scanpy.readthedocs.io/en/stable/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
+    "pyro": ("https://docs.pyro.ai/en/stable/", None),
+    "torch": ("https://pytorch.org/docs/stable/", None),
 }
+
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -125,7 +133,17 @@ html_theme_options = {
 pygments_style = "default"
 
 nitpick_ignore = [
+    ("py:class", "optional"),
+    ("py:class", "array_like"),
+    ("py:class", "NoneType"),
     # If building the documentation fails because of a missing link that is outside your control,
     # you can add an exception to this list.
     #     ("py:class", "igraph.Graph"),
+]
+
+nitpick_ignore_regex = [
+    ("py:class", ".*default.*"),
+    ("py:class", '.*".*'),
+    ("py:class", r".*\}.*"),
+    ("py:class", r".*\}.*"),
 ]

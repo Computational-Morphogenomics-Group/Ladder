@@ -1,6 +1,7 @@
-from . import models, scripts, data
 from importlib.metadata import version
 
-__all__ = ["models", "scripts", "data"]
+from . import data, models, scripts
 
-__version__ = version("ladder")
+__all__ = ["data", "models", "scripts"]
+
+__version__ = version("scladder")

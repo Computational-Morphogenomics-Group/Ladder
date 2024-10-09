@@ -1,23 +1,160 @@
+"""The workflows module houses the workflow API.
+
+The workflow API is intended as a high-level API for users to
+generally apply the models included in `ladder` to their datasets.
+It includes standard applications of the models defined within.
+"""
+
+import math
+import warnings
+from typing import Literal
+
+import anndata as ad
+import numpy as np
+import pandas as pd
+import pyro
+import torch
+
+import ladder.data as utils
 import ladder.models as models
 import ladder.scripts as scripts
-import ladder.data as utils
-import anndata as ad
-import scanpy as sc
-from typing import Literal
-import sys, warnings
-import pandas as pd
-import math
-import pyro, torch
-import numpy as np
-
 
 # Force warnings all the time, they are important!
 warnings.simplefilter("always", UserWarning)
 
 
 class BaseWorkflow:
-    """
-    Implements the base workflow for running any of the pipelines.
+    """Base class for all workflows.
+
+    Offers a high-level API that does not require running blocks of
+    code in quick succession, as the process for each dataset is more or
+    less similar. Must not be instantiated and used directly. All parameters
+    given to specific functions throughout the workflow can later be accessed with
+    the same named attribute.
+
+    Parameters
+    ----------
+    anndata : :class:`~anndata.AnnData`
+        The dataset object to be used throughout the analyses.
+
+    config : :class:`Literal["cross-condition", "interpretable"]`, default: "cross-condition"
+        Defines the workflow to be used. Affects model structure.
+
+    verbose : :class:`bool`, default: False
+        If `True`, prints progress messages for various methods within the module.
+
+    random_seed : :class:`int`, optional
+        If given, seeds the internal modules with the value.
+
+    Attributes
+    ----------
+    anndata : :class:`~anndata.AnnData`
+        The attached :class:`~torch.utils.data.Dataset` object.
+
+    batch_key : :class:`str`, optional
+        Optional batch key in :attr:`~anndata.AnnData.obs` for correction.
+
+    batch_mapping : :class:`dict`
+        Mapping of batch literals to encodings, only appears if batch key is provided in workflow.
+
+    cell_type_label_key : :class:`str`, optional
+        Optional cell type labels in :attr:`~anndata.AnnData.obs`, required if cell-type specific evaluation is desired.
+
+    config : :class:`Literal["cross-condition", "interpretable"]`, default: "cross-condition"
+        The config string provided during construction.
+
+    converter : :class:`~ladder.data.real_data.AnndataConverter`
+        Low-level converter class for the attached :class:`~torch.utils.data.Dataset`. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
+
+    dataset : :class:`~torch.utils.data.Dataset`
+        Low-level :class:`~torch.utils.data.Dataset` object passed to the model. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
+
+    factors : :class:`list`
+        List of factors to register to the model.
+
+    verbose : :class:`bool`, optional
+        If `True`, prints progress messages for various methods within the module.
+
+    random_seed : :class:`int`, optional
+        If given, seeds the internal modules with the value.
+
+    label_style : :class:`str`
+        Defines the conditional encoding style to use depending on the model.
+
+    latent_dim : :class:`int`
+        Size of the latent dimension for the model. Common latent for Patches.
+
+    len_attrs : :class:`list`
+        Specifies the number of attributes per condition class.
+
+    levels : :class:`dict`
+        Mapping of condition literals to encodings.
+
+    l_mean : :class:`float` or array_like
+        If :attr:`batch_key` is provided in workflow, the empirical library size log-mean for each batch (1-D Array-like of :class:`float`). A single value otherwise.
+
+    l_scale : :class:`float` or array_like
+        If :attr:`batch_key` is provided in workflow, then the empirical library size log-variance for each batch (1-D Array-like of :class:`float`). A single value otherwise.
+
+    minibatch_size : :class:`int`
+        Size of the minibatch to be provided during training.
+
+    model : :class:`~torch.nn.Module`
+        The model object attached to the workflow.
+
+    model_type : :class:`str`
+        Specifies the model attached to the current workflow.
+
+    optim_args : :class:`dict`
+        Optimizer arguments passed to low-level trainer. See :mod:`~ladder.scripts.training` for details.
+
+    predictive : :class:`~pyro.infer.predictive.Predictive`
+        Low-level generator to be used for tasks after training.
+
+    reconstruction : :class:`str`
+        Defines the decoder to be used.
+
+    train_loss : :class:`~numpy.ndarray`
+        :class:`~numpy.ndarray` of losses recorded on the training set during training.
+
+    train_set : :class:`~torch.utils.data.Dataset`
+        Low-level training :class:`~torch.utils.data.Dataset` passed to the model. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
+
+    test_loss : :class:`~numpy.ndarray`
+        :class:`~numpy.ndarray` of losses recorded on the test set during training.
+
+    test_set : torch.utils.data.Dataset
+        Low-level test :class:`~torch.utils.data.Dataset` passed to the model. See `:func:`~ladder.data.real_data.distrib_dataset` for details.
+
+    w_dim : :class:`int`, optional
+        Size of conditional latents, only defined for Patches.
+
+    Methods
+    -------
+    prep_model(factors, batch_key=None, cell_type_label_key=None, minibatch_size=128, model_type="Patches", model_args=None, optim_args=None)
+        Prepares the model to be run.
+
+    run_model(max_epochs=1500, convergence_threshold=1e-3, convergence_window=30, classifier_warmup=0, params_save_path=None)
+        Runs the model on the attached data object.
+
+    save_model(params_save_path)
+        Saves the attached model.
+
+    load_model(params_load_path)
+        Loads parameters for the attached model. Needs :meth:`prep_model` to be run first.
+
+    plot_loss()
+        Simple plotter for loss functions.
+
+    write_embeddings()
+        Places the calculated cell embeddings from the trained model under the corresponding :attr:`~anndata.AnnData.obsm` field.
+
+    evaluate_reconstruction(subset=None, cell_type=None, n_iter=5)
+        Evaluates the quality of reconstructions with generative metrics.
+
+    evaluate_separability(factor=None)
+        Evaluates the separability of the latent encodings with respect to conditional effects.
+
     """
 
     # Static variable for optimizer choice
@@ -60,7 +197,6 @@ class BaseWorkflow:
         verbose: bool = False,
         random_seed: int = None,
     ):
-
         # Set internals
         self.anndata = utils.preprocess_anndata(anndata)
         self.config = config
@@ -78,6 +214,7 @@ class BaseWorkflow:
         if self.verbose:
             print(f"Initialized workflow to run {config} model.")
 
+    # Printer
     def __str__(self):
         return f"""
 {self.__class__.__name__} with parameters:
@@ -90,10 +227,12 @@ Batch Key: {self.batch_key}
 Model: {self.model_type}
 """
 
+    # Repr
     def __repr__(self):
         return f"<Workflow / Config: {self.config}, Random Seed: {self.random_seed}, Verbose: {self.verbose}, Levels: {self.levels}, Batch Key: {self.batch_key}, Model: {self.model_type}>"
 
-    # Data prep - private call
+    # Data preparation, implicitly called by prep_model
+    # For specific functions see the related module
     def _prep_data(
         self,
         factors: list,
@@ -101,10 +240,6 @@ Model: {self.model_type}
         cell_type_label_key: str = None,
         minibatch_size: int = 128,
     ):
-        """
-        Creates the required data objects to run the model
-        """
-
         if self.model_type is not None:  # Flag cleared, proceed to data setup
             self.label_style = "concat" if self.model_type != "SCANVI" else "one-hot"
             self.factors = factors
@@ -178,13 +313,12 @@ Model: {self.model_type}
 
         else:
             warnings.warn(
-                "ERROR: There seems to be no model registered to the workflow. Make sure not to run this function directly if you did so. You must instead run the 'prep_model()' function."
+                "ERROR: There seems to be no model registered to the workflow. Make sure not to run this function directly if you did so. You must instead run the 'prep_model()' function.",
+                stacklevel=2,
             )
 
+    # Set up model args
     def _fetch_model_args(self, model_args):
-        """
-        Used to modify model_args efficiently depending on the model used.
-        """
         # For all models
         model_args["reconstruction"] = self.reconstruction
         model_args["batch_correction"] = self.batch_correction
@@ -203,18 +337,14 @@ Model: {self.model_type}
 
         return model_args
 
+    # Delete unused optimizer args
     def _clear_bad_optim_args(self):
-        """
-        Clears optim_args keys that won't be used downstream.
-        """
         self.optim_args = {
             k: v for k, v in self.optim_args.items() if k in self.OPT_LIST
         }
 
+    # Register latent dims to attributes
     def _register_latent_dims(self):
-        """
-        Registers latent dimensions to be used downstream
-        """
         match self.model_type:
             case self.model_type if self.model_type in self.OPT_CLASS1:
                 self.latent_dim = self.model.latent_dim
@@ -233,10 +363,34 @@ Model: {self.model_type}
         model_args: dict = None,
         optim_args: dict = None,
     ):
-        """
-        Creates the model object to be run.
-        """
+        """Prepares the model to be run.
 
+        The choice of model implicitly decides the kind of condition encodings
+        to use, so there is no need to have a separate data preparation.
+
+        Parameters
+        ----------
+        factors : :class:`list`
+            Factors from :attr:`~anndata.AnnData.obs` to register to the model.
+
+        batch_key : :class:`str`, optional
+            Defines the workflow to be used. Affects model structure. Can later be accessed with same named attribute.
+
+        cell_type_label_key : :class:`str`, optional
+            Optional cell type labels in :attr:`~anndata.AnnData.obs`, required if cell-type specific evaluation is desired.
+
+        minibatch_size : :class:`int`, default: 128
+            Size of the minibatch to be provided during training.
+
+        model_type : :class:`Literal["SCVI", "SCANVI", "Patches"]`, default: "Patches"
+            Specifies the model attached to the current workflow.
+
+        model_args : :class:`dict`
+            Model arguments passed to low-level model constructor. See :mod:`~ladder.models` for details.
+
+        optim_args : :class:`dict`
+            Optimizer arguments passed to low-level trainer. See :mod:`~ladder.scripts.training` for details.
+        """
         # Flush params if needed
         pyro.clear_param_store()
 
@@ -263,8 +417,11 @@ Model: {self.model_type}
                 self.anndata.X.shape[-1], self.l_mean, self.l_scale, **model_args
             )
 
-        except Exception as e:
-            warnings.warn("\nINFO: model_args ignored, using model defaults...")
+        except (TypeError, ValueError) as e:
+            print(f"Exception encountered while passing model args: {e}")
+            warnings.warn(
+                "\nINFO: model_args ignored, using model defaults...", stacklevel=2
+            )
             model_args = self._fetch_model_args({})
             self.model = constructor(
                 self.anndata.X.shape[-1], self.l_mean, self.l_scale, **model_args
@@ -287,26 +444,17 @@ Model: {self.model_type}
             if key not in optim_args.keys():
                 optim_args[key] = self.OPT_DEFAULTS[key]
 
-        # Grab model optimizer
-        match self.model_type:
-            case self.model_type if self.model_type in self.OPT_CLASS1:
-                self.optim_args = {
-                    "optimizer": torch.optim.Adam,
-                    "optim_args": {
-                        "lr": optim_args["lr"],
-                        "eps": optim_args["eps"],
-                        "betas": optim_args["betas"],
-                    },
-                    "gamma": optim_args["gamma"],
-                    "milestones": optim_args["milestones"],
-                }
-
-            case self.model_type if self.model_type in self.OPT_CLASS2:
-                self.optim_args = {
-                    "lr": optim_args["lr"],
-                    "eps": optim_args["eps"],
-                    "betas": optim_args["betas"],
-                }
+        # Fill optim args attr
+        self.optim_args = {
+            "optimizer": torch.optim.Adam,
+            "optim_args": {
+                "lr": optim_args["lr"],
+                "eps": optim_args["eps"],
+                "betas": optim_args["betas"],
+            },
+            "gamma": optim_args["gamma"],
+            "milestones": optim_args["milestones"],
+        }
 
         # Clear whatever is unused
         self._clear_bad_optim_args()
@@ -322,15 +470,36 @@ Model: {self.model_type}
         convergence_threshold: float = 1e-3,
         convergence_window: int = 30,
         classifier_warmup: int = 0,
+        classifier_aggression: int = 0,
         params_save_path: str = None,
     ):
-        """
-        Train the model.
-        """
+        """Runs the model on the attached data object.
 
+        Parameters
+        ----------
+        max_epochs : :class:`int`, default: 1500
+            Maximum number of epochs to run.
+
+        convergence_threshold : :class:`float`, default: 1e-3
+            Minimum improvement required to continue training.
+
+        convergence_window : :class:`int`, default: 30
+            Number of epochs to wait until a new minimum is attained.
+
+        classifier_warmup : :class:`int`, default: 0
+            Number of epochs to run the classifier before running the entire model.
+
+        classifier_aggression : :class:`int`, default: 0
+            Number of epochs the classifier takes independently between jointly trained epochs. Used for Patches.
+
+        params_save_path : :class:`str`, optional
+            If provided, saves the model to the specified path.
+
+        """
         if dict(pyro.get_param_store()):
             warnings.warn(
-                "WARNING: Retraining without resetting parameters is discouraged. Please call prep_model() again if you wish to rerun training."
+                "WARNING: Retraining without resetting parameters is discouraged. Please call prep_model() again if you wish to rerun training.",
+                stacklevel=2,
             )
 
         if self.verbose:
@@ -364,10 +533,9 @@ Model: {self.model_type}
                         num_epochs=max_epochs,
                         convergence_threshold=convergence_threshold,
                         convergence_window=convergence_window,
-                        lr=self.optim_args["lr"],
-                        eps=self.optim_args["eps"],
-                        style="joint",
                         warmup=classifier_warmup,
+                        classifier_aggression=classifier_aggression,
+                        optim_args=self.optim_args,
                     )
                 )
 
@@ -381,32 +549,45 @@ Model: {self.model_type}
             self.model.save(params_save_path)
 
     def save_model(self, params_save_path: str):
-        """
-        Saves the parameters for the currently loaded model.
+        """Saves the attached model.
+
+        Parameters
+        ----------
+        params_save_path : :class:`str`
+            Path to save model parameters. Expects only the name without extensions.
         """
         self.model.save(params_save_path)
 
     def load_model(self, params_load_path: str):
-        """
-        Loads the parameters for the initialized model.
+        """Loads parameters for the attached model. Needs :meth:`prep_model` to be run first.
+
+        Parameters
+        ----------
+        params_load_path : :class:`str`
+            Path to find model parameters. Expects only the shared prefix, and not the trailing "_torch.pth" or "_pyro.pth".
         """
         self.model.load(params_load_path)
         self.model = self.model.eval().cpu().double()
         self.predictive = pyro.infer.Predictive(self.model.generate, num_samples=1)
 
     def plot_loss(self, save_loss_path: str = None):
-        """
-        Plots the training / test losses for the model.
+        """Simple plotter for loss functions.
+
+        Parameters
+        ----------
+        save_loss_path : :class:`str`, optional
+            If provided, saves the figure to the specified location. Requires the full name with extensions (eg. fig.png).
         """
         scripts._plot_loss(
             self.train_loss, self.test_loss, save_loss_path=save_loss_path
         )
 
     def write_embeddings(self):
-        """
-        Write latent embeddings to the attached anndata.
-        """
+        """Places the calculated cell embeddings from the trained model under the corresponding :attr:`~anndata.AnnData.obsm` field.
 
+        Each model has a separate name for their respective latent, so that more than a
+        single workflow running on the same object instance does not overwrite info.
+        """
         # Add latent generation here per model
         match self.model_type:
             case "SCVI":
@@ -438,14 +619,16 @@ Model: {self.model_type}
                 self.anndata.obsm["patches_w_latent"] = w_latent.detach().numpy()
                 self.anndata.obsm["patches_z_latent"] = z_latent.detach().numpy()
 
+                if self.reconstruction not in ["ZINB_LD", "Normal_LD"]:
+                    self.anndata.obsm["patches_rho_latent"] = (
+                        rho_latent.detach().numpy()
+                    )
+
         if self.verbose:
             print("Written embeddings to object 'anndata.obsm' under workflow.")
 
+    # Subset the test set to a single type
     def _subset_by_type(self, cell_type: str):
-        """
-        Used to subset the test set to a single cell type.
-        """
-
         # Make sure we have that type
         assert cell_type in list(self.anndata.obs[self.cell_type_label_key].astype(str))
 
@@ -475,6 +658,19 @@ Model: {self.model_type}
     def evaluate_reconstruction(
         self, subset: str = None, cell_type: str = None, n_iter: int = 5
     ):
+        """Evaluates the quality of reconstructions with generative metrics.
+
+        Parameters
+        ----------
+        subset : :class:`str`, optional
+            Key from :attr:`~BaseWorkflow.levels` to subset cells for a specific condition before evaluating reconstruction.
+
+        cell_type : :class:`str`, optional
+            Requires :attr:`~BaseWorkflow.cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating reconstruction.
+
+        n_iter : :class:`int`, default: 5
+            Number of times to repeat the generative process.
+        """
         printer = []
         source, target = None, None
 
@@ -515,18 +711,83 @@ Model: {self.model_type}
         for item in printer:
             print(item)
 
+    def evaluate_separability(self, factor: str = None):
+        """Evaluates the separability of latent embeddings for conditions.
+
+        Parameters
+        ----------
+        factor : :class:`str`, optional
+            Item listed in :attr:`BaseWorkflow.factors`. If not provided, the metrics will be evaluated on the combinations of factors.
+        """
+        # Make sure factor is in factors or not provided
+        assert factor is None or factor in self.factors
+
+        # Factor is none means using the factorized column
+        if factor is None:
+            factor = "factorized"
+
+        # Decide on model
+        # Add latent generation here per model
+        match self.model_type:
+            case "SCVI":
+                embed = ["scvi_latent"]
+
+            case "SCANVI":
+                embed = ["scanvi_u_latent", "scanvi_z_latent"]
+
+            case "Patches":
+                embed = ["patches_w_latent", "patches_z_latent"]
+
+        # Run results for all embeddings
+        printer = []
+
+        for emb in embed:
+            if self.verbose:
+                print(f"Running for embedding: {emb}")
+
+            printer.append(f"\n{emb}\n=========")
+            for metric in self.SEP_METRICS_REG.keys():
+                func = getattr(scripts, metric)
+                printer.append(
+                    f"{self.SEP_METRICS_REG[metric]} : {np.round(func(self.anndata, factor, emb),3)}"
+                )
+
+        # Print results
+        print("Results\n===================")
+        for item in printer:
+            print(item)
+
 
 class InterpretableWorkflow(BaseWorkflow):
-    """
-    Implements the functions for evaluating the interpretable model.
-    Requires a linear decoder by definition.
+    """Interpretable workflow for training with a linear decoder.
+
+    Inherits :class:`BaseWorkflow` and adds functionalities desired from
+    running the interpretable models with linear decoders.
+
+    Parameters
+    ----------
+    anndata : :class:`~anndata.AnnData`
+        The dataset object to be used throughout the analyses.
+
+    verbose : :class:`bool`, default: False
+        If `True`, prints progress messages for various methods within the module.
+
+    random_seed : :class:`int`, optional
+        If given, seeds the internal modules with the value.
+
+    Methods
+    -------
+    get_conditional_loadings()
+        Writes attribute specific gene loadings to :attr:`~anndata.AnnData.var`.
+
+    get_common_loadings()
+        Writes non-conditional gene loadings to :attr:`~anndata.AnnData.var`.
     """
 
     # Constructor
     def __init__(
         self, anndata: ad.AnnData, verbose: bool = False, random_seed: int = None
     ):
-
         BaseWorkflow.__init__(
             self,
             anndata=anndata,
@@ -536,10 +797,11 @@ class InterpretableWorkflow(BaseWorkflow):
         )
 
     def get_conditional_loadings(self):
-        """
-        Return loadings per condition class or condition string (for SCANVI).
-        """
+        """Writes attribute specific gene loadings to :attr:`~anndata.AnnData.var`.
 
+        Only to be used with Patches, as the other models do not offer
+        an attribute-specific way to learn coefficients.
+        """
         # TODO: Implement for SCANVI
         assert self.model_type == "Patches"
 
@@ -566,8 +828,9 @@ class InterpretableWorkflow(BaseWorkflow):
             print("Written condition specific loadings to 'self.anndata.var'.")
 
     def get_common_loadings(self):
-        """
-        Return latent loadings.
+        """Writes non-conditional gene loadings to :attr:`~anndata.AnnData.var`.
+
+        Can be used with all models.
         """
         # Grab all weights
         mu, logits = self.model.get_weights()
@@ -583,16 +846,32 @@ class InterpretableWorkflow(BaseWorkflow):
 
 
 class CrossConditionWorkflow(BaseWorkflow):
-    """
-    Implements the functions for evaluating cross-condition prediction.
-    Necessiates the use of a non-linear decoder for high quality transfers.
+    """Cross-condition workflow for training with a non-linear decoder.
+
+    Inherits :class:`BaseWorkflow` and adds functionalities desired from
+    running a cross-conditional model for more precise reconstructions and transfers.
+
+    Parameters
+    ----------
+    anndata : :class:`~anndata.AnnData`
+        The dataset object to be used throughout the analyses.
+
+    verbose : :class:`bool`, default: False
+        If `True`, prints progress messages for various methods within the module.
+
+    random_seed : :class:`int`, optional
+        If given, seeds the internal modules with the value.
+
+    Methods
+    -------
+    evaluate_transfer(source, target, cell_type=None, n_iter=10)
+        Evaluates the quality of transfers with generative metrics.
     """
 
     # Constructor
     def __init__(
         self, anndata: ad.AnnData, verbose: bool = False, random_seed: int = None
     ):
-
         BaseWorkflow.__init__(
             self,
             anndata=anndata,
@@ -605,8 +884,21 @@ class CrossConditionWorkflow(BaseWorkflow):
     def evaluate_transfer(
         self, source: str, target: str, cell_type: str = None, n_iter: int = 10
     ):
-        """
-        Calculates the metrics for quantifying the quality of the transfer, does not require matchings.
+        """Evaluates the quality of transfers with generative metrics.
+
+        Parameters
+        ----------
+        source : :class:`str`
+            Key from :attr:`BaseWorkflow.levels` to decide source condition.
+
+        target : :class:`str`
+            Key from :attr:`BaseWorkflow.levels` to decide target condition.
+
+        cell_type : :class:`str`, optional
+            Requires :attr:`BaseWorkflow.cell_type_label_key` to be defined as attribute. Subset cells to a single type before evaluating transfer.
+
+        n_iter : :class:`int`, default: 10
+            Number of times to repeat the generative process.
         """
         printer = []
 
@@ -650,50 +942,6 @@ class CrossConditionWorkflow(BaseWorkflow):
                 f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}"
             )
 
-        print("Results\n===================")
-        for item in printer:
-            print(item)
-
-    def evaluate_separability(self, factor: str = None):
-        """
-        Calculates mixing and separability metrics for latent spaces of the model.
-        If factor is supplied, only for that factor. Otherwise for the combination of all factors (as intended).
-        """
-
-        # Make sure factor is in factors or not provided
-        assert factor is None or factor in self.factors
-
-        # Factor is none means using the factorized column
-        if factor is None:
-            factor = "factorized"
-
-        # Decide on model
-        # Add latent generation here per model
-        match self.model_type:
-            case "SCVI":
-                embed = ["scvi_latent"]
-
-            case "SCANVI":
-                embed = ["scanvi_u_latent", "scanvi_z_latent"]
-
-            case "Patches":
-                embed = ["patches_w_latent", "patches_z_latent"]
-
-        # Run results for all embeddings
-        printer = []
-
-        for emb in embed:
-            if self.verbose:
-                print(f"Running for embedding: {emb}")
-
-            printer.append(f"\n{emb}\n=========")
-            for metric in self.SEP_METRICS_REG.keys():
-                func = getattr(scripts, metric)
-                printer.append(
-                    f"{self.SEP_METRICS_REG[metric]} : {np.round(func(self.anndata, factor, emb),3)}"
-                )
-
-        # Print results
         print("Results\n===================")
         for item in printer:
             print(item)

@@ -1,31 +1,49 @@
-####################################
-### Tools to use with real data ########
-####################################
+"""The real_data module houses the functions to be used with real datasets.
 
-import torch
+The functions defined here can either be used independently for
+specific low-level applications or through the workflows API for
+high-level, standard applications.
+"""
+
+from collections.abc import Iterable
+from itertools import chain, product
+from typing import Literal
+
+import anndata as ad
 import numpy as np
 import pandas as pd
+import torch
 import torch.utils.data as utils
-from itertools import combinations, product, permutations, chain
-from typing import Iterable, Literal
-import anndata as ad
-from scipy.sparse import issparse, csr_matrix
-import ot
+from scipy.sparse import issparse
 from sklearn.preprocessing import OrdinalEncoder
 
 
-# Helper to convert between numeric and categorical views of metadata
-# tensor can be a subset of the original metadata tensor
-# metadata should be the full original metadata object at all times to preserve category encoding
 class MetadataConverter:
+    """Class used to convert numerical torch tensors into categorical equivalents.
+
+    Allows mapping of numerical tensors with information that would usually be expected
+    in :attr:`~anndata.AnnData.obs` into categorical equivalent with literals from the original metadata.
+    This class allows for arbitrary subsets of data to be mapped back.
+
+    Parameters
+    ----------
+    metadata : :class:`~pandas.DataFrame`
+        The dataframe object that includes the metadata, which is :attr:`~anndata.AnnData.obs` for most cases.
+
+    Attributes
+    ----------
+    df_view : :class:`~pandas.DataFrame`
+        Dataframe object for reference.
+
+    num_cols : :class:`int`
+        Number of columns for `df_view`.
+    """
 
     def __init__(self, metadata_df: pd.DataFrame):
-
         self.df_view = metadata_df
         self.num_cols = metadata_df.shape[1]
 
     def _tensor_to_cat(self, met_val_string: torch.Tensor):
-
         stack_list = []
 
         for i, colname in enumerate(self.df_view):
@@ -39,7 +57,7 @@ class MetadataConverter:
             # Do reverse mapping - also decide again on single multi val
             if (
                 type(self.df_view[colname].dtype)
-                == pd.core.dtypes.dtypes.CategoricalDtype
+                is pd.core.dtypes.dtypes.CategoricalDtype
             ):
                 if len(met_val_string.shape) == 1:
                     stack_list.append(
@@ -67,7 +85,19 @@ class MetadataConverter:
 
         return np.hstack(stack_list)
 
-    def map_to_df(self, met_val_string: torch.Tensor):
+    def map_to_df(self, met_val_string: torch.Tensor) -> np.ndarray:
+        """The function that actually does the metadata mapping.
+
+        Parameters
+        ----------
+        met_val_string : :class:`~torch.Tensor`
+            Tensor shaped like :class:`~torch.utils.data.TensorDataset`.
+
+        Returns
+        -------
+        metadata_mapping : :class:`~numpy.ndarray`
+            Numerical tensor converted back to categorical equivalent.
+        """
         assert (
             (len(met_val_string.shape) == 2)
             and (met_val_string.shape[1] == self.num_cols)
@@ -76,19 +106,41 @@ class MetadataConverter:
             and (met_val_string.shape[0] == self.num_cols)
         ), "Input doesn't match defined columns in metadata"
 
-        return self._tensor_to_cat(met_val_string)
+        metadata_mapping = self._tensor_to_cat(met_val_string)
+        return metadata_mapping
 
 
-# Helper to convert tuple torch tensors into anndata views for further use
-# tensor tuples are expected as (counts, labels, metadata)
-# the original metadata df is also needed to preserve categories
 class AnndataConverter(MetadataConverter):
+    """Class used to convert tensor datasets into an :class:`~anndata.AnnData` object.
+
+    This class allows for arbitrary subsets of tensors to be mapped back into
+    an object that looks like the subset of the original object. Inherits
+    :class:`MetadataConverter`.
+
+    Parameters
+    ----------
+    metadata_df : :class:`~pandas.DataFrame`
+        The dataframe object that includes the metadata, which is :attr:`~anndata.AnnData.obs` for most cases.
+    """
 
     def __init__(self, metadata_df: pd.DataFrame):
         MetadataConverter.__init__(self, metadata_df)
 
-    def map_to_anndat(self, val_tup):
+    def map_to_anndat(self, val_tup) -> ad.AnnData:
+        """Function to actually do the mapping to :class:`~anndata.AnnData`.
 
+        Parameters
+        ----------
+        val_tup : :class:`tuple`
+            Size 3 tuple of :class:`~torch.Tensor`. The first index is used for counts. The second index
+            provides labels, which are not used here as they are redundant but required for training.
+            The third index provides the numerically encoded metadata.
+
+        Returns
+        -------
+        anndat : :class:`~anndata.AnnData`
+            The anndata equivalent of the numerical :class:`~torch.Tensor` objects.
+        """
         # Make object from the counts
         anndat = ad.AnnData(val_tup[0].numpy())
 
@@ -98,7 +150,7 @@ class AnndataConverter(MetadataConverter):
 
         # Explicit categorical typecasting to play well with metrics
         for colname in df:
-            if any(isinstance(value, (int, float)) for value in df[colname]):
+            if any(isinstance(value, int | float) for value in df[colname]):
                 df[colname] = df[colname].astype(float)
 
             else:
@@ -110,37 +162,34 @@ class AnndataConverter(MetadataConverter):
 
 
 class ConcatTensorDataset(utils.ConcatDataset):
-    r"""
+    """Allows for arbitrary concatenation of :class:`~torch.utils.data.TensorDataset`.
 
     Courtesy of https://github.com/johann-petrak/pytorch/commit/eb70e81e31508c383bdc17059ddb532a6b40468c
-
     ConcatDataset of TensorDatasets which supports getting slices and index lists/arrays.
     This dataset allows the use of slices, e.g. ds[2:4] and of arrays or lists of multiple indices
     if all concatenated datasets are either TensorDatasets or Subset or other ConcatTensorDataset instances
     which eventually contain only TensorDataset instances. If no slicing is needed,
     this class works exactly like torch.utils.data.ConcatDataset and can concatenate arbitrary
     (not just TensorDataset) datasets.
-    Args:
-        datasets (sequence): List of datasets to be concatenated
 
-
+    Parameters
+    ----------
+        datasets : :class:`Iterable[torch.utils.data.Dataset]`
+            List of datasets to be concatenated.
     """
 
     def __init__(self, datasets: Iterable[utils.Dataset]) -> None:
-        super(ConcatTensorDataset, self).__init__(datasets)
+        super().__init__(datasets)
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
-            rows = [
-                super(ConcatTensorDataset, self).__getitem__(i)
-                for i in range(self.__len__())[idx]
-            ]
-            return tuple(map(torch.stack, zip(*rows)))
-        elif isinstance(idx, (list, np.ndarray)):
-            rows = [super(ConcatTensorDataset, self).__getitem__(i) for i in idx]
-            return tuple(map(torch.stack, zip(*rows)))
+            rows = [super().__getitem__(i) for i in range(self.__len__())[idx]]
+            return tuple(map(torch.stack, zip(*rows, strict=False)))
+        elif isinstance(idx, list | np.ndarray):
+            rows = [super().__getitem__(i) for i in idx]
+            return tuple(map(torch.stack, zip(*rows, strict=False)))
         else:
-            return super(ConcatTensorDataset, self).__getitem__(idx)
+            return super().__getitem__(idx)
 
 
 ####################################################################################
@@ -188,7 +237,7 @@ def _concat_cat_df(metadata):
     stack_list = []
 
     for colname in metadata:
-        if type(metadata[colname].dtype) == pd.core.dtypes.dtypes.CategoricalDtype:
+        if type(metadata[colname].dtype) is pd.core.dtypes.dtypes.CategoricalDtype:
             stack_list.append(metadata[colname].cat.codes.to_numpy().reshape(-1, 1))
 
         else:
@@ -225,9 +274,25 @@ def _process_array(arr):
 
 
 # Simple preprocessing to conver to anndata
-def preprocess_anndata(anndat):
+def preprocess_anndata(anndat) -> ad.AnnData:
+    """Function to preprocess the inputted :class:`~anndata.AnnData` object.
+
+    Does not do any critical modifications, but instead ensures that the numerical
+    columns in :attr:`~anndata.AnnData.obs` are of type :class:`float` and string columns are defined
+    as :class:`~pandas.CategoricalDtype`.
+
+    Parameters
+    ----------
+    anndat : :class:`~anndata.AnnData`
+        The :class:`~anndata.AnnData` object to be preprocessed.
+
+    Returns
+    -------
+    anndat : :class:`~anndata.AnnData`
+        Object after typecasting operations.
+    """
     for colname in anndat.obs:
-        if any(isinstance(value, (int, float)) for value in anndat.obs[colname]):
+        if any(isinstance(value, int | float) for value in anndat.obs[colname]):
             anndat.obs[colname] = anndat.obs[colname].astype(float)
 
         else:
@@ -236,17 +301,46 @@ def preprocess_anndata(anndat):
     return anndat
 
 
-# Helper to get dataset for CVAE models
-
-
 def construct_labels(
     counts,
     metadata,
     factors,
     style: Literal["concat", "one-hot"] = "concat",
-    batch_key=None,
-):
+    batch_key: str = None,
+) -> tuple:
+    """Function to generate conditional labels for the various models included.
 
+    Parameters
+    ----------
+    counts
+        The field corresponding to :attr:`~anndata.AnnData.X`.
+
+    metadata
+        The field corresponding to :attr:`~anndata.AnnData.obs`.
+
+    factors : array_like
+        1D Array-like of :class:`str`. The list specifying factors, which are names of the columns from :attr:`~anndata.AnnData.obs`.
+
+    style : :class:`Literal["concat", "one-hot"]`
+        Specifies the label encoding.
+
+    batch_key : :class:`str`, optional
+        Specifies the batch key, must be included in :attr:`~anndata.AnnData.obs`.
+
+    Returns
+    -------
+    dataset : :class:`~torch.utils.data.TensorDataset`
+        The dataset object to be used downstream.
+
+    levels : :class:`dict`
+        A mapping between the literal combinations of `factors` and their numerical equivalents.
+
+    converter : :class:`AnndataConverter`
+        The converter object with the associated dataset.
+
+    batch_mapping : :class:`dict`
+        Returned only if `batch_key` is given. Ordinal encoding for the batch dimension.
+    """
     # Small checks for batch and sparsity
     assert batch_key not in factors, "Batch should not be specified as factor"
 
@@ -258,7 +352,6 @@ def construct_labels(
 
     match style:
         case "concat":
-
             factors_list = [
                 torch.from_numpy(
                     pd.get_dummies(metadata[factor]).to_numpy().astype(int)
@@ -342,24 +435,75 @@ def construct_labels(
 
 # Helper to go from dataset to train-test split loaders
 def distrib_dataset(
-    dataset,
-    levels,
-    split_pcts=[0.8, 0.2],
+    dataset: utils.TensorDataset,
+    levels: dict,
+    split_pcts=None,
     batch_size=128,
     keep_train=None,
     keep_test=None,
-    batch_key=None,
+    batch_key: str = None,
     **kwargs,
-):
+) -> tuple:
+    """Function that distributes the :class:`~torch.utils.data.TensorDataset` generated by `construct_labels`.
+
+    Parameters
+    ----------
+    dataset : :class:`~torch.utils.data.TensorDataset`
+        The `dataset` output from `construct_labels`.
+
+    levels : :class:`dict`
+        The `levels` output from `construct_labels`.
+
+    split_pcts : array_like, optional
+        Size 2 list of `float` specifying the proportions for training and test respectively. Ignored if both `keep_train` and `keep_test` are not `None`.
+
+    batch_size : :class:`int`
+        Mini-batch size for the models to train on.
+
+    keep_train : array_like, optional
+        1D Array-like of `str`. Specifies the levels to keep in the training dataset. Elements must be from `levels.keys()`.
+
+    keep_test : array_like, optional
+        1D Array-like of `str`. Specifies the levels to keep in the test dataset. Elements must be from `levels.keys()`.
+
+    batch_key : :class:`str`, optional
+        Must not be `None` if `batch_key` was previously provided to `construct_labels`. The actual values is unimportant for this scope.
+
+    **kwargs : :class:`dict`, optional
+        Keyword arguments passed to `utils.DataLoader`.
+
+    Returns
+    -------
+    train_set : :class:`~torch.utils.data.TensorDataset` or ConcatTensorDataset
+        The full training set to be used downstream.
+
+    test_set : :class:`~torch.utils.data.TensorDataset` or ConcatTensorDataset
+        The full test set to be used downstream.
+
+    train_loader : :class:`~torch.utils.data.DataLoader`
+        The corresponding loader for `train_set`.
+
+    test_loader : :class:`~torch.utils.data.DataLoader`
+         The corresponding loader for `test_set`.
+
+    l_mean : :class:`float` or array_like
+        If `batch_key` is provided, the empirical library size log-mean for each batch (1-D Array-like of :class:`float`). A single value otherwise.
+
+    l_scale : :class:`float` or array_like
+        If `batch_key` is provided, then the empirical library size log-variance for each batch (1-D Array-like of :class:`float`). A single value otherwise.
+    """
+    if split_pcts is None:
+        split_pcts = [0.8, 0.2]
 
     inv_levels = {v: k for k, v in levels.items()}  # Inverse levels required
 
     # General training to see how the model fits. USed to evaluate reconstruction or to fit interpretable model with linear decoder.
     if keep_train is None or keep_test is None:
         train_set, test_set = utils.random_split(dataset, split_pcts)
-        train_loader, test_loader = utils.DataLoader(
-            train_set, batch_size=batch_size, shuffle=True, **kwargs
-        ), utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs)
+        train_loader, test_loader = (
+            utils.DataLoader(train_set, batch_size=batch_size, shuffle=True, **kwargs),
+            utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs),
+        )
 
     # Used for transfer of conditions. Train test split is completely manually defined and based on attributes
     else:
@@ -379,9 +523,15 @@ def distrib_dataset(
             ]
         )
 
-        train_loader, test_loader = utils.DataLoader(
-            train_set, batch_size=batch_size, shuffle=True, **kwargs
-        ), utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs)
+        # Additional typecasting to expect a single class (TensorDataset)
+        train_set, test_set = utils.TensorDataset(*train_set[:]), utils.TensorDataset(
+            *test_set[:]
+        )
+
+        train_loader, test_loader = (
+            utils.DataLoader(train_set, batch_size=batch_size, shuffle=True, **kwargs),
+            utils.DataLoader(test_set, batch_size=batch_size, shuffle=False, **kwargs),
+        )
 
     # If batch is appended to input, generate size priors per batch
     if batch_key is not None:
@@ -395,94 +545,3 @@ def distrib_dataset(
         )
 
     return train_set, test_set, train_loader, test_loader, l_mean, l_scale
-
-
-# Helper to train linear regression with optional matchings
-def make_lin_reg_data(
-    counts,
-    metadata,
-    split_factor,
-    labels,
-    source_groups,
-    target_groups,
-    batch_size=128,
-    split_pcts=[0.8, 0.2],
-    matchings: Literal["random", "ot"] = "random",
-):
-
-    # Densify
-    counts = _process_array(counts)
-
-    sources, targets = [], []
-
-    for lab in metadata[labels].cat.categories:
-        lab_locs = np.where(
-            metadata.index.isin(metadata[metadata[labels] == lab].index)
-        )
-        sub_metadata, sub_counts = metadata.iloc[lab_locs], counts[lab_locs]
-
-        locs_source, locs_target = np.where(
-            sub_metadata.index.isin(
-                [
-                    x
-                    for xs in [
-                        list(
-                            sub_metadata.groupby("factors", observed=True)
-                            .get_group(group_name)
-                            .index
-                        )
-                        for group_name in source_groups
-                    ]
-                    for x in xs
-                ]
-            )
-        ), np.where(
-            sub_metadata.index.isin(
-                [
-                    x
-                    for xs in [
-                        list(
-                            sub_metadata.groupby("factors", observed=True)
-                            .get_group(group_name)
-                            .index
-                        )
-                        for group_name in target_groups
-                    ]
-                    for x in xs
-                ]
-            )
-        )
-
-        x, y = sub_counts[locs_source], sub_counts[locs_target]
-
-        match matchings:
-            case "random":
-                y = torch.from_numpy(
-                    y[np.random.choice(y.shape[0], x.shape[0], replace=True)]
-                ).double()
-
-            case "ot":
-                # Set up basic ot
-                a, b = (
-                    np.ones((x.shape[0],)) / x.shape[0],
-                    np.ones((y.shape[0],)) / y.shape[0],
-                )
-                M = ot.dist(x, y, metric="correlation")
-                Gs = ot.sinkhorn(a, b, M, 1e-1)
-
-                idxs = [row.argmax() for row in Gs]
-                y = torch.from_numpy(y[idxs]).double()
-
-        x = torch.from_numpy(x).double()
-        sources.append(x)
-        targets.append(y)
-
-    x, y = torch.vstack(sources), torch.vstack(targets)
-
-    dataset = utils.TensorDataset(x, y)
-    train_set, test_set = utils.random_split(dataset, split_pcts)
-    train_loader, test_loader = utils.DataLoader(
-        train_set, num_workers=4, batch_size=batch_size, shuffle=True
-    ), utils.DataLoader(test_set, num_workers=4, batch_size=batch_size, shuffle=False)
-
-    return train_set, test_set, train_loader, test_loader

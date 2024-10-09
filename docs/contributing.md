@@ -16,7 +16,7 @@ you need additional python packages to [run tests](#writing-tests) and [build th
 
 :::::{tabs}
 ::::{group-tab} Hatch
-The easiest way is to get familiar with [hatch environments][], with which these tasks are simply:
+The easiest way is to get familiar with [hatch environments][https://hatch.pypa.io/1.12/environment/], with which these tasks are simply:
 
 ```bash
 hatch test  # defined in the table [tool.hatch.envs.hatch-test] in pyproject.toml
@@ -42,7 +42,8 @@ pip install -e ".[dev,test,doc]"
 
 ## Code-style
 
-This package uses [pre-commit][] to enforce consistent code-styles.
+This package uses [pre-commit](https://pre-commit.com/) to enforce consistent code-styles. For Python, we specifically
+use the style enforced by [Black](https://github.com/psf/black), which is easily applicable through pre-commit hooks.
 On every commit, pre-commit checks will either automatically fix issues with the code, or raise an error message.
 
 To enable pre-commit locally, simply run
@@ -54,7 +55,7 @@ pre-commit install
 in the root of the repository.
 Pre-commit will automatically download all dependencies when it is run for the first time.
 
-Alternatively, you can rely on the [pre-commit.ci][] service enabled on GitHub.
+Alternatively, you can rely on the [pre-commit.ci](https://pre-commit.ci/) service enabled on GitHub.
 If you didn't run `pre-commit` before pushing changes to GitHub it will automatically commit fixes to your pull request, or show an error message.
 
 If pre-commit.ci added a commit on a branch you still have been working on locally, simply use
@@ -64,22 +65,14 @@ git pull --rebase
 ```
 
 to integrate the changes into yours.
-While the [pre-commit.ci][] is useful, we strongly encourage installing and running pre-commit locally first to understand its usage.
+While the [pre-commit.ci](https://pre-commit.ci/) is useful, we strongly encourage installing and running pre-commit locally first to understand its usage.
 
-Finally, most editors have an _autoformat on save_ feature.
-Consider enabling this option for [ruff][ruff-editors] and [prettier][prettier-editors].
-
-[pre-commit]: https://pre-commit.com/
-[pre-commit.ci]: https://pre-commit.ci/
-[ruff-editors]: https://docs.astral.sh/ruff/integrations/
-
-[prettier-editors]: https://prettier.io/docs/en/editors.html
 
 (writing-tests)=
 
 ## Writing tests
 
-This package uses [pytest][] for automated testing.
+This package uses [pytest](https://docs.pytest.org/en/stable/) for automated testing.
 Please write {doc}`scanpy:dev/testing` for every function added to the package.
 
 Most IDEs integrate with pytest and provide a GUI to run tests.
@@ -115,8 +108,6 @@ pytest
 
 in the root of the repository.
 
-[pytest]: https://docs.pytest.org/
-
 ### Continuous integration
 
 Continuous integration will automatically run the tests on all pull requests and test
@@ -131,7 +122,7 @@ gives you time to fix the issue or reach out to the developers of the dependency
 ### Updating the version number
 
 Before making a release, you need to update the version number in the `pyproject.toml` file.
-Please adhere to [Semantic Versioning][semver], in brief
+Please adhere to [Semantic Versioning](https://semver.org/), in brief
 
 > Given a version number MAJOR.MINOR.PATCH, increment the:
 >
@@ -143,43 +134,32 @@ Please adhere to [Semantic Versioning][semver], in brief
 
 Once you are done, commit and push your changes and navigate to the "Releases" page of this project on GitHub.
 Specify `vX.X.X` as a tag name and create a release.
-For more information, see [managing GitHub releases][].
-This will automatically create a git tag and trigger a Github workflow that creates a release on [PyPI][].
+For more information, see [managing GitHub releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
+This will automatically create a git tag and trigger a Github workflow that creates a release on [PyPI][https://pypi.org/].
 
-[semver]: https://semver.org/
-[managing GitHub releases]: https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository
-[pypi]: https://pypi.org/
 
 ## Writing documentation
 
 Please write documentation for new or changed features and use-cases.
-This project uses [sphinx][] with the following features:
+This project uses [sphinx](https://www.sphinx-doc.org/en/master/) with the following features:
 
--   The [myst][] extension allows to write documentation in markdown/Markedly Structured Text
--   [Numpy-style docstrings][numpydoc] (through the [napoloen][numpydoc-napoleon] extension).
--   Jupyter notebooks as tutorials through [myst-nb][] (See [Tutorials with myst-nb](#tutorials-with-myst-nb-and-jupyter-notebooks))
--   [sphinx-autodoc-typehints][], to automatically reference annotated input and output types
+-   The [myst](https://myst-nb.readthedocs.io/en/latest/) extension allows to write documentation in markdown/Markedly Structured Text
+-   [Numpy-style docstrings](https://numpydoc.readthedocs.io/en/latest/format.html) (through the [napoloen](https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html) extension).
+-   Jupyter notebooks as tutorials through [myst-nb](https://myst-nb.readthedocs.io/en/latest/),
+-   [sphinx-autodoc-typehints](https://github.com/tox-dev/sphinx-autodoc-typehints), to automatically reference annotated input and output types
 -   Citations (like {cite:p}`Virshup_2023`) can be included with [sphinxcontrib-bibtex](https://sphinxcontrib-bibtex.readthedocs.io/)
 
 See scanpy’s {doc}`scanpy:dev/documentation` for more information on how to write your own.
 
-[sphinx]: https://www.sphinx-doc.org/en/master/
-[myst]: https://myst-parser.readthedocs.io/en/latest/intro.html
-[myst-nb]: https://myst-nb.readthedocs.io/en/latest/
-[numpydoc-napoleon]: https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
-[numpydoc]: https://numpydoc.readthedocs.io/en/latest/format.html
-[sphinx-autodoc-typehints]: https://github.com/tox-dev/sphinx-autodoc-typehints
 
 ### Tutorials with myst-nb and jupyter notebooks
 
-The documentation is set-up to render jupyter notebooks stored in the `docs/notebooks` directory using [myst-nb][].
+The documentation is set-up to render jupyter notebooks stored in the `docs/notebooks` directory using [myst-nb](https://myst-nb.readthedocs.io/en/latest/).
 Currently, only notebooks in `.ipynb` format are supported that will be included with both their input and output cells.
 It is your responsibility to update and re-run the notebook whenever necessary.
 
 If you are interested in automatically running notebooks as part of the continuous integration,
-please check out [this feature request][issue-render-notebooks] in the `cookiecutter-scverse` repository.
-
-[issue-render-notebooks]: https://github.com/scverse/cookiecutter-scverse/issues/40
+please check out [this feature request](https://github.com/scverse/cookiecutter-scverse/issues/40) in the `cookiecutter-scverse` repository.
 
 #### Hints
 

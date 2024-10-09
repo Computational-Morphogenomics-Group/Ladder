@@ -1,10 +1,8 @@
+from .builtin_data import get_data
 from .real_data import (
     AnndataConverter,
     MetadataConverter,
-    preprocess_anndata,
     construct_labels,
     distrib_dataset,
-    make_lin_reg_data,
+    preprocess_anndata,
 )
-
-from .builtin_data import get_data
