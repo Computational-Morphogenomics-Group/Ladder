@@ -1397,8 +1397,11 @@ class Patches(nn.Module):
             w_loc, w_scale = self.w_encoder(rho_y)
             z_loc, z_scale = self.z_encoder(rho)
 
-            pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+            with poutine.scale(None, self.w_kl):
+                pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+
+            with poutine.scale(None, self.z_kl):
+                z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
             # Classification for w (good) and z (bad)
 
