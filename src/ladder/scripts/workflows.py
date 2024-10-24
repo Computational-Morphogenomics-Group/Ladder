@@ -163,7 +163,7 @@ class BaseWorkflow:
 
     # Static lookup for optimizer defaults
     OPT_DEFAULTS = {
-        "lr": 1e-2,
+        "lr": 1e-3,
         "eps": 1e-2,
         "betas": (0.90, 0.999),
         "gamma": 1,
