@@ -68,33 +68,44 @@ def _get_subset(point_dataset, target):
 # Compare multiple profiles to a single mean profile - RMSE
 def _get_rmse_n_to_1(profiles, mean_profile, **kwargs):
     obj = profiles.add(-1 * mean_profile).square().mean(-1).sqrt()
-    return obj.mean().item(), obj.var().item()
+    return obj.mean().item(), obj.std().item()
 
 
 # Compare multiple profiles to a single mean profile - Pearson Correlation
 def _get_corr_n_to_1(profiles, mean_profile, **kwargs):
     obj = [pearsonr(profile, mean_profile)[0] for profile in profiles]
-    return np.mean(obj), np.var(obj)
+    return np.mean(obj), np.std(obj)
 
 
 # Compare multiple point clouds to a single cloud - CD
 def _get_chamf_n_to_1(samples, orig, verbose=False, **kwargs):
-    matches = [
+    matches_forward = [
         torch.cdist(orig, samples[i], p=2).argmin(-1)
+        for i in _get_iterator(len(samples), verbose=verbose)
+    ]
+
+    matches_backward = [
+        torch.cdist(samples[i], orig, p=2).argmin(-1)
         for i in _get_iterator(len(samples), verbose=verbose)
     ]
     chamf = torch.stack(
         [
-            orig.add(-1 * (samples[i][matches[i]])).square().mean()
+            (
+                orig.add(-1 * (samples[i][matches_forward[i]])).square().div(len(orig))
+                + samples[i]
+                .add(-1 * orig[matches_backward[i]])
+                .square()
+                .div(len(samples[i]))
+            ).mean()
             for i in _get_iterator(len(samples), verbose=verbose)
         ]
     )
-    return chamf.mean().item(), chamf.var().item()
+    return chamf.mean().item(), chamf.std().item()
 
 
 # Compare multiple point clouds to a single cloud - 2-SW
 def _get_sliced_wasserstein_n_to_1(
-    samples, orig, projections=1e3, verbose=False, **kwargs
+    samples, orig, projections=2e4, verbose=False, **kwargs
 ):
     unif_simplex_a, unif_simplex_b = (
         torch.ones(orig.shape[0]).div(orig.shape[0]),
@@ -108,7 +119,7 @@ def _get_sliced_wasserstein_n_to_1(
             for i in _get_iterator(len(samples), verbose=verbose)
         ]
     )
-    return wd.mean().item(), wd.var().item()
+    return wd.mean().item(), wd.std().item()
 
 
 ####################################

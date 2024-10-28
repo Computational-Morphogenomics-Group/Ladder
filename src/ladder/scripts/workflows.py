@@ -285,7 +285,11 @@ Model: {self.model_type}
                     self.l_mean,
                     self.l_scale,
                 ) = utils.distrib_dataset(
-                    self.dataset, self.levels, batch_size=128, batch_key=self.batch_key
+                    self.dataset,
+                    self.levels,
+                    batch_size=self.minibatch_size,
+                    batch_key=self.batch_key,
+                    drop_last=True,
                 )
 
                 self.batch_correction = True
@@ -306,7 +310,11 @@ Model: {self.model_type}
                     self.l_mean,
                     self.l_scale,
                 ) = utils.distrib_dataset(
-                    self.dataset, self.levels, batch_size=128, batch_key=self.batch_key
+                    self.dataset,
+                    self.levels,
+                    batch_size=self.minibatch_size,
+                    batch_key=self.batch_key,
+                    drop_last=True,
                 )
 
                 self.batch_correction = False
@@ -467,8 +475,8 @@ Model: {self.model_type}
     def run_model(
         self,
         max_epochs: int = 1500,
-        convergence_threshold: float = 1e-3,
-        convergence_window: int = 30,
+        convergence_threshold: float = 1e-4,
+        convergence_window: int = 100,
         classifier_warmup: int = 0,
         classifier_aggression: int = 0,
         params_save_path: str = None,
@@ -671,7 +679,7 @@ Model: {self.model_type}
         n_iter : :class:`int`, default: 5
             Number of times to repeat the generative process.
         """
-        printer = []
+        return_dict, printer = {}, []
         source, target = None, None
 
         # Grab specific cell type if so
@@ -707,9 +715,16 @@ Model: {self.model_type}
                 f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}"
             )
 
+            return_dict[self.METRICS_REG[metric]] = [
+                np.round(preds_mean_error, 3),
+                np.round(preds_mean_var, 3),
+            ]
+
         print("Results\n===================")
         for item in printer:
             print(item)
+
+        return return_dict
 
     def evaluate_separability(self, factor: str = None):
         """Evaluates the separability of latent embeddings for conditions.

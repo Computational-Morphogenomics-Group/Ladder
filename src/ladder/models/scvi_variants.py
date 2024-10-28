@@ -1069,7 +1069,7 @@ class Patches(nn.Module):
         scale_factor: float = 1.0,
         batch_correction: bool = False,
         ld_sparsity: bool = False,
-        ld_normalize: bool = True,
+        ld_normalize: bool = False,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
         # Init params & hyperparams
@@ -1425,13 +1425,14 @@ class Patches(nn.Module):
                 "classification_loss", classification_loss_z, has_rsample=False
             )  # Want this maximized so positive sign in guide
 
-            if (self.reconstruction in ["ZINB_LD", "Normal_LD"]) and self.sparsity:
+            # TODO: rewrite with get weights to work for Normal_LD
+            if (self.reconstruction in ["ZINB_LD"]) and self.sparsity:
                 params = (
                     list(self.x_decoder.parameters())[0].T[self.latent_dim :].clone()
                 )
                 _, x_loc_params = params.reshape(params.shape[:-1] + (2, -1)).unbind(-2)
                 pyro.factor(
-                    "l1_loss", x_loc_params.sum().abs(), has_rsample=False
+                    "l1_loss", x_loc_params.abs().sum(), has_rsample=False
                 )  # sparsity
 
     # Adverserial
