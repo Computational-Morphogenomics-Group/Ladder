@@ -1003,6 +1003,9 @@ class Patches(nn.Module):
     ld_normalize : :class:`bool`, default: True
         If `True`, adds bias term to decoder. Can only be used with linear decoders.
 
+    sparsity_lambda : :class:`float`, default: 0.0001
+        Weight of the L1 term in the loss.
+
     reconstruction : :class:`Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"]`, default: "ZINB"
         The distribiution assumed to model the input data.
 
@@ -1070,6 +1073,7 @@ class Patches(nn.Module):
         batch_correction: bool = False,
         ld_sparsity: bool = False,
         ld_normalize: bool = False,
+        sparsity_lambda: float = 0.0001,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
         # Init params & hyperparams
@@ -1108,6 +1112,7 @@ class Patches(nn.Module):
         self.batch_correction = batch_correction  # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction  # Distribution for the reconstruction
         self.sparsity = ld_sparsity  # Sparsity, used only with LD
+        self.sparsity_lambda = sparsity_lambda  # Sparsity lambda, used only with LD
         self.normalize = ld_normalize  # Normalization, adds bias to LD
         self.epsilon = 0.006
 
@@ -1432,7 +1437,9 @@ class Patches(nn.Module):
                 )
                 _, x_loc_params = params.reshape(params.shape[:-1] + (2, -1)).unbind(-2)
                 pyro.factor(
-                    "l1_loss", x_loc_params.abs().sum(), has_rsample=False
+                    "l1_loss",
+                    x_loc_params.abs().sum().mul(self.sparsity_lambda),
+                    has_rsample=False,
                 )  # sparsity
 
     # Adverserial
