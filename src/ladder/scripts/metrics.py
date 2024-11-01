@@ -91,12 +91,18 @@ def _get_chamf_n_to_1(samples, orig, verbose=False, **kwargs):
     chamf = torch.stack(
         [
             (
-                orig.add(-1 * (samples[i][matches_forward[i]])).square().div(len(orig))
+                orig.add(-1 * (samples[i][matches_forward[i]]))
+                .square()
+                .sum()
+                .div(len(orig))
                 + samples[i]
                 .add(-1 * orig[matches_backward[i]])
                 .square()
+                .sum()
                 .div(len(samples[i]))
-            ).mean()
+            ).div(
+                orig.shape[-1]
+            )  # Normalize for dimensionality
             for i in _get_iterator(len(samples), verbose=verbose)
         ]
     )

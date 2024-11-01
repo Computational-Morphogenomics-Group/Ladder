@@ -915,7 +915,7 @@ class CrossConditionWorkflow(BaseWorkflow):
         n_iter : :class:`int`, default: 10
             Number of times to repeat the generative process.
         """
-        printer = []
+        return_dict, printer = {}, []
 
         # TODO: Nothing explicit for scVI, implement in future if needed
         assert self.model_type in ("Patches", "SCANVI")
@@ -957,6 +957,13 @@ class CrossConditionWorkflow(BaseWorkflow):
                 f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}"
             )
 
+            return_dict[self.METRICS_REG[metric]] = [
+                np.round(preds_mean_error, 3),
+                np.round(preds_mean_var, 3),
+            ]
+
         print("Results\n===================")
         for item in printer:
             print(item)
+
+        return return_dict
