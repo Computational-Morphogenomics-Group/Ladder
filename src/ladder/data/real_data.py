@@ -387,22 +387,26 @@ def construct_labels(
             y = torch.cat(factors_list, dim=-1)
 
         case "one-hot":
-            factors_list = torch.from_numpy(
-                pd.get_dummies(metadata.apply(lambda x: " - ".join(x[factors]), axis=1))
-                .to_numpy()
-                .astype(int)
-            ).double()
-            cols = list(
-                pd.get_dummies(
-                    metadata.apply(lambda x: " - ".join(x[factors]), axis=1)
-                ).columns
-            )
+            levels = [
+                "_".join(elem)
+                for elem in product(
+                    *list(metadata[factors].apply(lambda x: set(x.unique())))
+                )
+            ]
+
             levels_cat = {
-                cols[i]: tuple([0] * i + [1] + [0] * (len(cols) - 1 - i))
-                for i in range(len(cols))
+                levels[i]: tuple([0] * i + [1] + [0] * (len(levels) - 1 - i))
+                for i in range(len(levels))
             }
 
-            y = factors_list
+            y = torch.from_numpy(
+                np.vstack(
+                    metadata.apply(
+                        lambda x: np.array(levels_cat["_".join(list(x[factors]))]),
+                        axis=1,
+                    )
+                )
+            ).double()
 
     # Decide if batch will be appended to input (ie. if working on data that needs batch correction)
     if batch_key is not None:

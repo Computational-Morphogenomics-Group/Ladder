@@ -13,7 +13,7 @@ from tqdm import tqdm
 # Static data paths, update when necessary
 DATA_PATHS = {
     "Vu": [
-        "https://www.dropbox.com/scl/fi/pnh0xv5hfyodr0b72csoh/vu_2022_ay_wh.h5ad?rlkey=ox3bdcp6drue4ze5hjtaat58z&st=owni9rir&dl=0",
+        "https://www.dropbox.com/scl/fi/rd24bhlp0urorxs4499y4/vu_2022_ay_wh.h5ad?rlkey=jafslgnqsjcz2ascvaxu7shph&st=mpjps96e&dl=1",
         "vu_2022_ay_wh.h5ad",
     ],
     "Ji": [
@@ -21,7 +21,7 @@ DATA_PATHS = {
         "ji_2020_tumor_ct.h5ad",
     ],
     "Mascharak": [
-        "https://www.dropbox.com/scl/fi/6i1gxyreyez40t7nvif1z/mascharak_2022_tn_wh.h5ad?rlkey=2tbo8et2qo9vm4qaxol5m2td8&st=9n7urt22&dl=0",
+        "https://www.dropbox.com/scl/fi/so1c360lasj39j59t2bgw/mascharak_2022_tn_wh.h5ad?rlkey=ksuj8ok974kgua6k4raw48t4i&st=kbd1eh7h&dl=1",
         "mascharak_2022_tn_wh.h5ad",
     ],
 }
