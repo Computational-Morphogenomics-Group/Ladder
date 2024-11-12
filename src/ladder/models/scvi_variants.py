@@ -1174,7 +1174,7 @@ class Patches(nn.Module):
             out_dim=self.latent_dim + (self.w_dim * self.num_labels),
             last_config="+lognormal",
             dist_config="+lognormal",
-            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+            keep_last_batch_norm=False,
         )
 
         for i in range(len(self.len_attrs)):
@@ -1187,7 +1187,7 @@ class Patches(nn.Module):
                     out_dim=self.len_attrs[i],
                     last_config="default",
                     dist_config="classifier",
-                    keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+                    keep_last_batch_norm=False,
                 ),
             )
 
@@ -1197,7 +1197,7 @@ class Patches(nn.Module):
             out_dim=self.latent_dim,
             last_config="reparam",
             dist_config="normal",
-            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+            keep_last_batch_norm=False,
         )
         self.w_encoder = _make_func(
             in_dims=self.latent_dim + (self.w_dim * self.num_labels) + self.num_labels,
@@ -1205,7 +1205,7 @@ class Patches(nn.Module):
             out_dim=self.w_dim * self.num_labels,
             last_config="reparam",
             dist_config="normal",
-            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+            keep_last_batch_norm=False,
         )
 
     # Model
