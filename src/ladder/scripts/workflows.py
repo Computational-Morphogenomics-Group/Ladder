@@ -524,7 +524,7 @@ Model: {self.model_type}
                     self.model,
                     train_loader=self.train_loader,
                     test_loader=self.test_loader,
-                    verbose=True,
+                    verbose=self.verbose,
                     num_epochs=max_epochs,
                     convergence_threshold=convergence_threshold,
                     convergence_window=convergence_window,
@@ -537,7 +537,7 @@ Model: {self.model_type}
                         self.model,
                         train_loader=self.train_loader,
                         test_loader=self.test_loader,
-                        verbose=True,
+                        verbose=self.verbose,
                         num_epochs=max_epochs,
                         convergence_threshold=convergence_threshold,
                         convergence_window=convergence_window,
@@ -754,23 +754,30 @@ Model: {self.model_type}
                 embed = ["patches_w_latent", "patches_z_latent"]
 
         # Run results for all embeddings
-        printer = []
+        return_dict, printer = {}, []
 
         for emb in embed:
+            return_dict[emb] = {}
+
             if self.verbose:
                 print(f"Running for embedding: {emb}")
 
             printer.append(f"\n{emb}\n=========")
+
             for metric in self.SEP_METRICS_REG.keys():
                 func = getattr(scripts, metric)
-                printer.append(
-                    f"{self.SEP_METRICS_REG[metric]} : {np.round(func(self.anndata, factor, emb),3)}"
-                )
+                score = np.round(func(self.anndata, factor, emb), 3)
+
+                printer.append(f"{self.SEP_METRICS_REG[metric]} : {score}")
+
+                return_dict[emb][self.SEP_METRICS_REG[metric]] = score
 
         # Print results
         print("Results\n===================")
         for item in printer:
             print(item)
+
+        return return_dict
 
 
 class InterpretableWorkflow(BaseWorkflow):

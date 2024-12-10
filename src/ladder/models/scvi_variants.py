@@ -1000,7 +1000,7 @@ class Patches(nn.Module):
     ld_sparsity : :class:`bool`, default: False
         If `True`, adds L1 loss for attribute specific latents. Can only be used with linear decoders.
 
-    ld_normalize : :class:`bool`, default: True
+    ld_normalize : :class:`bool`, default: False
         If `True`, adds bias term to decoder. Can only be used with linear decoders.
 
     sparsity_lambda : :class:`float`, default: 0.0001
@@ -1011,7 +1011,7 @@ class Patches(nn.Module):
 
     Methods
     -------
-    __init__(num_genes, l_loc, l_scale, num_labels, len_attrs, betas=None, w_loc=None, w_scale=None, w_dim=2, latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=False, ld_normalize=True, reconstruction="ZINB")
+    __init__(num_genes, l_loc, l_scale, num_labels, len_attrs, betas=None, w_loc=None, w_scale=None, w_dim=2, latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=False, ld_normalize=False, reconstruction="ZINB")
         Constructor for Patches.
 
     model(x, y)

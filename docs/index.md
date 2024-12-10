@@ -7,7 +7,8 @@
 :maxdepth: 1
 
 install.md
-tutorials.md
+tutorials_synthetic.md
+tutorials_real.md
 api/index
 changelog.md
 contributing.md
