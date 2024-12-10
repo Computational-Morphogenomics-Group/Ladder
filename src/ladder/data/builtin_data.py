@@ -13,15 +13,15 @@ from tqdm import tqdm
 # Static data paths, update when necessary
 DATA_PATHS = {
     "Vu": [
-        "https://drive.google.com/uc?export=download&id=1quCP3403hOPG5Q8cy1KWZui_a0mJrQ5J",
+        "https://www.dropbox.com/scl/fi/rd24bhlp0urorxs4499y4/vu_2022_ay_wh.h5ad?rlkey=jafslgnqsjcz2ascvaxu7shph&st=mpjps96e&dl=1",
         "vu_2022_ay_wh.h5ad",
     ],
     "Ji": [
-        "https://drive.google.com/uc?export=download&id=1QVjRyZmMArI0ex0NvpJcAvTxvt8JgbwA",
+        "https://www.dropbox.com/scl/fi/2hgdpy29fcz161j998cyn/ji_2020_tumor_ct.h5ad?rlkey=5xcgj9h7p9fdqd9r4lwjbzsl1&st=tj8wi8cv&dl=1",
         "ji_2020_tumor_ct.h5ad",
     ],
     "Mascharak": [
-        "https://drive.google.com/uc?export=download&id=1EEUefuOWAXo5pgSEgMTsfIGT2ik64pJN",
+        "https://www.dropbox.com/scl/fi/so1c360lasj39j59t2bgw/mascharak_2022_tn_wh.h5ad?rlkey=ksuj8ok974kgua6k4raw48t4i&st=kbd1eh7h&dl=1",
         "mascharak_2022_tn_wh.h5ad",
     ],
 }
@@ -87,7 +87,12 @@ def get_data(
     save_path = save_path + DATA_PATHS[dataset][1]
 
     # Send download request
-    response = requests.get(DATA_PATHS[dataset][0], allow_redirects=True)
+    headers = {
+        "user-agent": "Wget/1.16 (linux-gnu)"
+    }  # Dropbox checks the agent for some reason
+    response = requests.get(
+        DATA_PATHS[dataset][0], headers=headers, stream=True, allow_redirects=True
+    )
 
     # Get and process response
     _download_data(response, save_path, smoke_test)

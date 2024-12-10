@@ -163,7 +163,7 @@ class BaseWorkflow:
 
     # Static lookup for optimizer defaults
     OPT_DEFAULTS = {
-        "lr": 1e-2,
+        "lr": 1e-3,
         "eps": 1e-2,
         "betas": (0.90, 0.999),
         "gamma": 1,
@@ -285,7 +285,11 @@ Model: {self.model_type}
                     self.l_mean,
                     self.l_scale,
                 ) = utils.distrib_dataset(
-                    self.dataset, self.levels, batch_size=128, batch_key=self.batch_key
+                    self.dataset,
+                    self.levels,
+                    batch_size=self.minibatch_size,
+                    batch_key=self.batch_key,
+                    drop_last=True,
                 )
 
                 self.batch_correction = True
@@ -306,7 +310,11 @@ Model: {self.model_type}
                     self.l_mean,
                     self.l_scale,
                 ) = utils.distrib_dataset(
-                    self.dataset, self.levels, batch_size=128, batch_key=self.batch_key
+                    self.dataset,
+                    self.levels,
+                    batch_size=self.minibatch_size,
+                    batch_key=self.batch_key,
+                    drop_last=True,
                 )
 
                 self.batch_correction = False
@@ -467,8 +475,8 @@ Model: {self.model_type}
     def run_model(
         self,
         max_epochs: int = 1500,
-        convergence_threshold: float = 1e-3,
-        convergence_window: int = 30,
+        convergence_threshold: float = 1e-4,
+        convergence_window: int = 100,
         classifier_warmup: int = 0,
         classifier_aggression: int = 0,
         params_save_path: str = None,
@@ -516,7 +524,7 @@ Model: {self.model_type}
                     self.model,
                     train_loader=self.train_loader,
                     test_loader=self.test_loader,
-                    verbose=True,
+                    verbose=self.verbose,
                     num_epochs=max_epochs,
                     convergence_threshold=convergence_threshold,
                     convergence_window=convergence_window,
@@ -529,7 +537,7 @@ Model: {self.model_type}
                         self.model,
                         train_loader=self.train_loader,
                         test_loader=self.test_loader,
-                        verbose=True,
+                        verbose=self.verbose,
                         num_epochs=max_epochs,
                         convergence_threshold=convergence_threshold,
                         convergence_window=convergence_window,
@@ -671,7 +679,7 @@ Model: {self.model_type}
         n_iter : :class:`int`, default: 5
             Number of times to repeat the generative process.
         """
-        printer = []
+        return_dict, printer = {}, []
         source, target = None, None
 
         # Grab specific cell type if so
@@ -707,9 +715,16 @@ Model: {self.model_type}
                 f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}"
             )
 
+            return_dict[self.METRICS_REG[metric]] = [
+                np.round(preds_mean_error, 3),
+                np.round(preds_mean_var, 3),
+            ]
+
         print("Results\n===================")
         for item in printer:
             print(item)
+
+        return return_dict
 
     def evaluate_separability(self, factor: str = None):
         """Evaluates the separability of latent embeddings for conditions.
@@ -739,23 +754,30 @@ Model: {self.model_type}
                 embed = ["patches_w_latent", "patches_z_latent"]
 
         # Run results for all embeddings
-        printer = []
+        return_dict, printer = {}, []
 
         for emb in embed:
+            return_dict[emb] = {}
+
             if self.verbose:
                 print(f"Running for embedding: {emb}")
 
             printer.append(f"\n{emb}\n=========")
+
             for metric in self.SEP_METRICS_REG.keys():
                 func = getattr(scripts, metric)
-                printer.append(
-                    f"{self.SEP_METRICS_REG[metric]} : {np.round(func(self.anndata, factor, emb),3)}"
-                )
+                score = np.round(func(self.anndata, factor, emb), 3)
+
+                printer.append(f"{self.SEP_METRICS_REG[metric]} : {score}")
+
+                return_dict[emb][self.SEP_METRICS_REG[metric]] = score
 
         # Print results
         print("Results\n===================")
         for item in printer:
             print(item)
+
+        return return_dict
 
 
 class InterpretableWorkflow(BaseWorkflow):
@@ -900,7 +922,7 @@ class CrossConditionWorkflow(BaseWorkflow):
         n_iter : :class:`int`, default: 10
             Number of times to repeat the generative process.
         """
-        printer = []
+        return_dict, printer = {}, []
 
         # TODO: Nothing explicit for scVI, implement in future if needed
         assert self.model_type in ("Patches", "SCANVI")
@@ -942,6 +964,13 @@ class CrossConditionWorkflow(BaseWorkflow):
                 f"{self.METRICS_REG[metric]} : {np.round(preds_mean_error,3)} +- {np.round(preds_mean_var,3)}"
             )
 
+            return_dict[self.METRICS_REG[metric]] = [
+                np.round(preds_mean_error, 3),
+                np.round(preds_mean_var, 3),
+            ]
+
         print("Results\n===================")
         for item in printer:
             print(item)
+
+        return return_dict

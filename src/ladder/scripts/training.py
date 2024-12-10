@@ -89,7 +89,7 @@ def train_pyro(
     if optim_args is None:
         optim_args = {
             "optimizer": opt.Adam,
-            "optim_args": {"lr": 1e-2, "eps": 1e-2},
+            "optim_args": {"lr": 1e-3, "eps": 1e-2},
             "gamma": 1,
             "milestones": [1e10],
         }
@@ -226,7 +226,7 @@ def train_pyro_disjoint_param(
     if optim_args is None:
         optim_args = {
             # Additional "optimizer" passed here by workflows, ignored,
-            "optim_args": {"lr": 1e-2, "eps": 1e-2, "betas": (0.9, 0.999)},
+            "optim_args": {"lr": 1e-3, "eps": 1e-2, "betas": (0.9, 0.999)},
             "gamma": 1,
             "milestones": [1e10],
         }

@@ -1000,15 +1000,18 @@ class Patches(nn.Module):
     ld_sparsity : :class:`bool`, default: False
         If `True`, adds L1 loss for attribute specific latents. Can only be used with linear decoders.
 
-    ld_normalize : :class:`bool`, default: True
+    ld_normalize : :class:`bool`, default: False
         If `True`, adds bias term to decoder. Can only be used with linear decoders.
+
+    sparsity_lambda : :class:`float`, default: 0.0001
+        Weight of the L1 term in the loss.
 
     reconstruction : :class:`Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"]`, default: "ZINB"
         The distribiution assumed to model the input data.
 
     Methods
     -------
-    __init__(num_genes, l_loc, l_scale, num_labels, len_attrs, betas=None, w_loc=None, w_scale=None, w_dim=2, latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=False, ld_normalize=True, reconstruction="ZINB")
+    __init__(num_genes, l_loc, l_scale, num_labels, len_attrs, betas=None, w_loc=None, w_scale=None, w_dim=2, latent_dim=10, num_layers=2, hidden_dim=128, scale_factor=1.0, batch_correction=False, ld_sparsity=False, ld_normalize=False, reconstruction="ZINB")
         Constructor for Patches.
 
     model(x, y)
@@ -1069,7 +1072,8 @@ class Patches(nn.Module):
         scale_factor: float = 1.0,
         batch_correction: bool = False,
         ld_sparsity: bool = False,
-        ld_normalize: bool = True,
+        ld_normalize: bool = False,
+        sparsity_lambda: float = 0.0001,
         reconstruction: Literal["ZINB", "Normal", "ZINB_LD", "Normal_LD"] = "ZINB",
     ):
         # Init params & hyperparams
@@ -1108,6 +1112,7 @@ class Patches(nn.Module):
         self.batch_correction = batch_correction  # Assume that batch is appended to input & latent if batch correction is applied
         self.reconstruction = reconstruction  # Distribution for the reconstruction
         self.sparsity = ld_sparsity  # Sparsity, used only with LD
+        self.sparsity_lambda = sparsity_lambda  # Sparsity lambda, used only with LD
         self.normalize = ld_normalize  # Normalization, adds bias to LD
         self.epsilon = 0.006
 
@@ -1169,7 +1174,7 @@ class Patches(nn.Module):
             out_dim=self.latent_dim + (self.w_dim * self.num_labels),
             last_config="+lognormal",
             dist_config="+lognormal",
-            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+            keep_last_batch_norm=False,
         )
 
         for i in range(len(self.len_attrs)):
@@ -1182,7 +1187,7 @@ class Patches(nn.Module):
                     out_dim=self.len_attrs[i],
                     last_config="default",
                     dist_config="classifier",
-                    keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+                    keep_last_batch_norm=False,
                 ),
             )
 
@@ -1192,7 +1197,7 @@ class Patches(nn.Module):
             out_dim=self.latent_dim,
             last_config="reparam",
             dist_config="normal",
-            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+            keep_last_batch_norm=False,
         )
         self.w_encoder = _make_func(
             in_dims=self.latent_dim + (self.w_dim * self.num_labels) + self.num_labels,
@@ -1200,7 +1205,7 @@ class Patches(nn.Module):
             out_dim=self.w_dim * self.num_labels,
             last_config="reparam",
             dist_config="normal",
-            keep_last_batch_norm=(self.reconstruction == "ZINB_LD"),
+            keep_last_batch_norm=False,
         )
 
     # Model
@@ -1397,8 +1402,11 @@ class Patches(nn.Module):
             w_loc, w_scale = self.w_encoder(rho_y)
             z_loc, z_scale = self.z_encoder(rho)
 
-            pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+            with poutine.scale(None, self.w_kl):
+                pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+
+            with poutine.scale(None, self.z_kl):
+                z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
             # Classification for w (good) and z (bad)
 
@@ -1422,13 +1430,16 @@ class Patches(nn.Module):
                 "classification_loss", classification_loss_z, has_rsample=False
             )  # Want this maximized so positive sign in guide
 
-            if (self.reconstruction in ["ZINB_LD", "Normal_LD"]) and self.sparsity:
+            # TODO: rewrite with get weights to work for Normal_LD
+            if (self.reconstruction in ["ZINB_LD"]) and self.sparsity:
                 params = (
                     list(self.x_decoder.parameters())[0].T[self.latent_dim :].clone()
                 )
                 _, x_loc_params = params.reshape(params.shape[:-1] + (2, -1)).unbind(-2)
                 pyro.factor(
-                    "l1_loss", x_loc_params.sum().abs(), has_rsample=False
+                    "l1_loss",
+                    x_loc_params.abs().sum().mul(self.sparsity_lambda),
+                    has_rsample=False,
                 )  # sparsity
 
     # Adverserial
