@@ -15,35 +15,37 @@ Patches takes as input a collection of observations or gene expression profiles 
 
 embed pictures here
 
+
 ## Table of Contents
 
 1. [Installation](#installation)
 2. [Repository structure](#repository-structure)
-3. [Getting started](#getting-started)
+    1. [Workflow API (for general users)](#workflow-api)
+    2. [Developer API (for advanced users)](#developer-api)
+4. [Getting started](#getting-started)
 5. [Release notes](#release-notes)
 6. [Issues and contact](#issues-and-contact)
 7. [License and citation](#license-and-citation)
 
 ## Installation
-Build the environment with:
-```
-conda env create -f env.yml
-```
-
-Install everything with:
+- You will need Python 3.10 or newer in your system. If you don't have a Python environment setup, we recommend installing it through [Mambaforge](https://github.com/conda-forge/miniforge#mambaforge).
+  
+- Install everything with:
 
 ```
 pip install git+https://github.com/Computational-Morphogenomics-Group/Ladder.git@patches
 ```
 
-## Repo Structure
+
+## Repository Structure
 Alongside Patches, this repository provides the low and high-level API's (called Ladder, still in development at time of Patches release) for running similar models with data from multiple conditions built on anndata.
 - All code is contained under the src directory. (add modules and stuff here)
 - Tests are contained under the tests directory.
 - All documentation can be generated and is serviced through the docs directory.
 
-### Workflow API (for basic users)
-The workflow API provides a very easy interface to apply models considered in the study ([scVI](https://scvi-tools.org/), [scANVI](https://scvi-tools.org/), Patches; all built on the Pyro framework) to multicondition datasets easily.
+
+### Workflow API
+The high-level workflow API provides a very easy interface to apply models considered in the study ([scVI](https://scvi-tools.org/), [scANVI](https://scvi-tools.org/), Patches; all built on the Pyro framework) to multicondition datasets easily.
 - This is recommended for users that want to directly apply the model, without worrying much for technical details.
 - Consult the workflow docs for hyperparameters you can define and how to define them.
 
@@ -62,7 +64,7 @@ workflow.prep_model(factors, batch_key="sample", model_type='Patches', model_arg
 workflow.run_model(max_epochs=2000, convergence_threshold=1e-5, convergence_window=2000) # Define convergence hyperparams
 ```
 
-### Developer API (for users who wish to build on the code provided)
+### Developer API
 The low-level developer API explicitly performs all actions condensed into workflows. This allows for:
 - Implementing and running additional models using the Pyro framework.
 - Data preparation functions to provide ease for running the models and downstream visualizations.
@@ -72,7 +74,7 @@ This API is designed to be specifically used by those who are interested in spec
 
 ## Getting started
 
-Please check out the [documentation][https://ladder.readthedocs.io] for all instructions and tutorials.
+Please check out the [documentation](https://ladder.readthedocs.io) for all instructions and tutorials.
 
 ## Release notes
 
@@ -83,7 +85,7 @@ See the [changelog][changelog].
 For questions and help requests, please reach out to [PUT CONTACT HERE][contact-address].
 If you encounter any bugs, please report it through the [issue tracker][issue-tracker]. In general, providing a minimally reproducible example is the best way to facilitate easy debugging of issues.
 
-## Citation
+## License and citation
 This project is licensed under the terms of the MIT License. If the codebase has been of any use to you, please cite:
 
 > TBD
