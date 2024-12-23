@@ -7,11 +7,11 @@
 
 <img src="repo_resources/logo.png" width="200px">
 
-Patches takes as input a collection of observations or gene expression profiles obtained from multiple conditions referred to as groups -- for example, age, treatment or injury stage. Each group is characterized by a unique set of categories or attributes -- for example, `young' or `old' represent attributes of the group `age'. Given an anndata object with metadata for the observations contained in separate columns of anndata.obs, Patches can:
+Patches takes as input a collection of observations or gene expression profiles obtained from multiple conditions referred to as groups -- for example, age, treatment or injury stage. Each group is characterized by a unique set of categories or attributes -- for example, 'young' or 'old' represent attributes of the group 'age'. Given an anndata object with metadata for the observations contained in separate columns of `anndata.obs`, Patches can:
 
 - Learn conditional and condition agnostic latent representations for observations.
-- 'Transfer' observations across combinations of conditions.
-- Provide attribute specific scores, associating gene expression with effects of attributes.
+- Transfer observations across combinations of conditions.
+- Provide attribute specific scores for each gene, associating gene expression with effects of attributes.
 
 <br/>
 <img src="repo_resources/patches.jpg" width="1000px">
@@ -83,7 +83,10 @@ See the [changelog][changelog].
 
 ## Issues and contact
 
-For questions and help requests, please reach out to [PUT CONTACT HERE][contact-address].
+For additional questions, please reach out to: 
+- ob2391@columbia.edu
+- bmd2151@columbia.edu
+
 If you encounter any bugs, please report it through the [issue tracker][issue-tracker]. In general, providing a minimally reproducible example is the best way to facilitate easy debugging of issues.
 
 ## License and citation
@@ -91,8 +94,12 @@ This project is licensed under the terms of the MIT License. If the codebase has
 
 > TBD
 
-[contact-address]: https://discourse.scverse.org/
+BibTeX:
+```
+TBD
+```
+
 [issue-tracker]: https://github.com/Computational-Morphogenomics-Group/Ladder/issues
 [changelog]: https://ladder.readthedocs.io/latest/changelog.html
 [link-api]: https://ladder.readthedocs.io/latest/api.html
-[link-pypi]: https://pypi.org/project/ladder
+[link-pypi]: https://pypi.org/project/scladder
