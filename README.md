@@ -92,11 +92,21 @@ If you encounter any bugs, please report it through the [issue tracker][issue-tr
 ## License and citation
 This project is licensed under the terms of the MIT License. If the codebase has been of any use to you, please cite:
 
-> TBD
+> Beker, O., Amador, D., Nima, J., Deursen, S., Woappi, Y., & Dumitrascu, B. (2024). Patches: A Representation Learning framework for Decoding Shared and Condition-Specific Transcriptional Programs in Wound Healing. bioRxiv.
 
 BibTeX:
 ```
-TBD
+@article {Beker2024.12.23.630186,
+	author = {Beker, Ozgur and Amador, Dreyton and Nima, Jose Pomarino and Deursen, Simon Van and Woappi, Yvon and Dumitrascu, Bianca},
+	title = {Patches: A Representation Learning framework for Decoding Shared and Condition-Specific Transcriptional Programs in Wound Healing},
+	elocation-id = {2024.12.23.630186},
+	year = {2024},
+	doi = {10.1101/2024.12.23.630186},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2024/12/24/2024.12.23.630186},
+	eprint = {https://www.biorxiv.org/content/early/2024/12/24/2024.12.23.630186.full.pdf},
+	journal = {bioRxiv}
+}
 ```
 
 [issue-tracker]: https://github.com/Computational-Morphogenomics-Group/Ladder/issues
