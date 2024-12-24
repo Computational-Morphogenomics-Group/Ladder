@@ -5,7 +5,7 @@
 <a href="https://github.com/Computational-Morphogenomics-Group/ladder/blob/main/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a> <!-- Courtesy of black docs for now -->
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
-<img src="https://github.com/Computational-Morphogenomics-Group/Ladder/blob/main/repo_resources/logo.png" width="200px">
+<img src="https://github.com/Computational-Morphogenomics-Group/Ladder/blob/main/repo_resources/logo.png?raw=true" width="200px">
 
 Patches takes as input a collection of observations or gene expression profiles obtained from multiple conditions referred to as groups -- for example, age, treatment or injury stage. Each group is characterized by a unique set of categories or attributes -- for example, 'young' or 'old' represent attributes of the group 'age'. Given an anndata object with metadata for the observations contained in separate columns of `anndata.obs`, Patches can:
 
@@ -14,7 +14,7 @@ Patches takes as input a collection of observations or gene expression profiles 
 - Provide attribute specific scores for each gene, associating gene expression with effects of attributes.
 
 <br/>
-<img src="https://github.com/Computational-Morphogenomics-Group/Ladder/blob/main/repo_resources/patches.jpg" width="1000px">
+<img src="https://github.com/Computational-Morphogenomics-Group/Ladder/blob/main/repo_resources/patches.jpg?raw=true" width="1000px">
 <br/>
 
 ## Table of Contents
