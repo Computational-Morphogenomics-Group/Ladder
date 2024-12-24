@@ -1,11 +1,11 @@
 # Patches
 
 <a href="https://github.com/Computational-Morphogenomics-Group/Ladder/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/Computational-Morphogenomics-Group/Ladder/actions/workflows/test.yaml/badge.svg?branch=main"></a>
-<a href="https://ladder.readthedocs.io"><img alt="Docs" src="https://img.shields.io/readthedocs/Ladder"></a>
+<a href="https://ladder.readthedocs.io"><img alt="Docs" src="https://img.shields.io/readthedocs/ladder"></a>
 <a href="https://github.com/Computational-Morphogenomics-Group/ladder/blob/main/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a> <!-- Courtesy of black docs for now -->
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
-<img src="repo_resources/logo.png" width="200px">
+<img src="https://github.com/Computational-Morphogenomics-Group/Ladder/blob/main/repo_resources/logo.png?raw=true" width="200px">
 
 Patches takes as input a collection of observations or gene expression profiles obtained from multiple conditions referred to as groups -- for example, age, treatment or injury stage. Each group is characterized by a unique set of categories or attributes -- for example, 'young' or 'old' represent attributes of the group 'age'. Given an anndata object with metadata for the observations contained in separate columns of `anndata.obs`, Patches can:
 
@@ -14,7 +14,7 @@ Patches takes as input a collection of observations or gene expression profiles 
 - Provide attribute specific scores for each gene, associating gene expression with effects of attributes.
 
 <br/>
-<img src="repo_resources/patches.jpg" width="1000px">
+<img src="https://github.com/Computational-Morphogenomics-Group/Ladder/blob/main/repo_resources/patches.jpg?raw=true" width="1000px">
 <br/>
 
 ## Table of Contents
@@ -92,11 +92,21 @@ If you encounter any bugs, please report it through the [issue tracker][issue-tr
 ## License and citation
 This project is licensed under the terms of the MIT License. If the codebase has been of any use to you, please cite:
 
-> TBD
+> Beker, O., Amador, D., Nima, J., Deursen, S., Woappi, Y., & Dumitrascu, B. (2024). Patches: A Representation Learning framework for Decoding Shared and Condition-Specific Transcriptional Programs in Wound Healing. bioRxiv.
 
 BibTeX:
 ```
-TBD
+@article {Beker2024.12.23.630186,
+	author = {Beker, Ozgur and Amador, Dreyton and Nima, Jose Pomarino and Deursen, Simon Van and Woappi, Yvon and Dumitrascu, Bianca},
+	title = {Patches: A Representation Learning framework for Decoding Shared and Condition-Specific Transcriptional Programs in Wound Healing},
+	elocation-id = {2024.12.23.630186},
+	year = {2024},
+	doi = {10.1101/2024.12.23.630186},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2024/12/24/2024.12.23.630186},
+	eprint = {https://www.biorxiv.org/content/early/2024/12/24/2024.12.23.630186.full.pdf},
+	journal = {bioRxiv}
+}
 ```
 
 [issue-tracker]: https://github.com/Computational-Morphogenomics-Group/Ladder/issues
