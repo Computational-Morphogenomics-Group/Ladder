@@ -6,7 +6,7 @@ Python installed, we recommend installing [Mambaforge](https://github.com/conda-
 There are several alternative options to install Ladder:
 
 
-1. Install the latest release of `scladder` from [PyPI][link-pypi]:
+1. Install the latest release of `scladder` from [PyPI](https://pypi.org/project/scladder/):
 
 ```bash
 pip install scladder
