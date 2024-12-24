@@ -1,9 +1,11 @@
 # Patches
 
 <a href="https://github.com/Computational-Morphogenomics-Group/Ladder/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/Computational-Morphogenomics-Group/Ladder/actions/workflows/test.yaml/badge.svg?branch=main"></a>
+<a href="https://pypi.org/project/scladder/"><img alt="Code style: black" src="https://img.shields.io/pypi/v/scladder"></a>
 <a href="https://ladder.readthedocs.io"><img alt="Docs" src="https://img.shields.io/readthedocs/ladder"></a>
 <a href="https://github.com/Computational-Morphogenomics-Group/ladder/blob/main/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a> <!-- Courtesy of black docs for now -->
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+
 
 <img src="https://github.com/Computational-Morphogenomics-Group/Ladder/blob/main/repo_resources/logo.png?raw=true" width="200px">
 
@@ -31,10 +33,12 @@ Patches takes as input a collection of observations or gene expression profiles 
 ## Installation
 - You will need Python 3.10 or newer in your system. If you don't have a Python environment setup, we recommend installing it through [Mambaforge](https://github.com/conda-forge/miniforge#mambaforge).
   
-- Install everything with:
-
+- Install everything with pip, either through PyPI or GitHub:
 ```
-pip install git+https://github.com/Computational-Morphogenomics-Group/Ladder.git@patches
+pip install scladder
+```
+```
+pip install git+https://github.com/Computational-Morphogenomics-Group/Ladder.git
 ```
 
 
