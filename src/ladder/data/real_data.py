@@ -671,7 +671,7 @@ def distrib_dataset(
 
             for batch in range(int(np.max(dset.counts[..., -1])) + 1):
                 idxs = np.nonzero(dset.counts[..., -1] == batch)[0]
-                subset = dset.counts[list(idxs)]
+                subset = dset.counts[list(idxs)][..., :-1]
                 l_mean.append(np.mean(np.log(np.sum(np.array(subset), axis=-1))))
                 l_scale.append(np.var(np.log(np.sum(np.array(subset), axis=-1))))
 
@@ -682,8 +682,8 @@ def distrib_dataset(
     # If not, need a single size prior
     else:
         l_mean, l_scale = (
-            np.mean(np.log(np.sum(np.array(train_set[:][0]), axis=-1))),
-            np.var(np.log(np.sum(np.array(train_set[:][0]), axis=-1))),
+            np.mean(np.log(np.sum(np.array(train_set.counts), axis=-1))),
+            np.var(np.log(np.sum(np.array(train_set.counts), axis=-1))),
         )
 
     return train_set, test_set, train_loader, test_loader, l_mean, l_scale
