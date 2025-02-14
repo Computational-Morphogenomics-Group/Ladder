@@ -33,30 +33,15 @@
 ## Models
 
 ```{eval-rst}
-.. module:: ladder.models
-.. currentmodule:: ladder
-
-.. autoclass:: models.Patches
-   :members:
-   :inherited-members:
-   :exclude-members:
-
-.. autoclass: models.SCVI
-   :members:
-   :inherited-members:
-   :exclude-members:
-
-.. autoclass: models.SCANVI
-   :members:
-   :inherited-members:
-   :exclude-members:
+.. module:: ladder.models.scvi_variants
+.. currentmodule:: ladder.models
 
 .. autosummary::
     :toctree: generated
 
-    models.Patches
-    models.SCVI
-    models.SCANVI
+    scvi_variants.Patches
+    scvi_variants.SCVI
+    scvi_variants.SCANVI
 ```
 
 ## Scripts

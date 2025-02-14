@@ -4,7 +4,7 @@ requires = [ "hatchling" ]
 
 [project]
 name = "scladder"
-version = "0.0.1"
+version = "0.1.0"
 description = "A workflow to run cross-conditional models for genomics data."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -62,7 +62,7 @@ optional-dependencies.test = [
   "pytest",
 ]
 # https://docs.pypi.org/project_metadata/#project-urls
-urls.Documentation = "https://scladder.readthedocs.io/"
+urls.Documentation = "https://ladder.readthedocs.io/"
 urls.Homepage = "https://github.com/Computational-Morphogenomics-Group/Ladder"
 urls.Source = "https://github.com/Computational-Morphogenomics-Group/Ladder"
 
