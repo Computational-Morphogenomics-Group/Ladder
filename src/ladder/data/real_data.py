@@ -205,7 +205,7 @@ class AnndataConverter(MetadataConverter):
         Returns
         -------
         anndat : :class:`~anndata.AnnData`
-            The anndata equivalent of the numerical :class:`~np.ndarray` objects.
+            The anndata equivalent of the numerical :class:`~numpy.ndarray` objects.
         """
         # Make object from the counts
         anndata = ad.AnnData(np.array(val_tup[0]))
@@ -227,10 +227,10 @@ class ConditionalDataset(utils.Dataset):
     labels :  :class:`~numpy.ndarray`
         Encoded conditional labels, assumed to be specifically of type  :class:`~numpy.ndarray`.
 
-    counts_transform : :class:`~typing.Callable`
+    counts_transform : :class:`~collections.abc.Callable`
         Function to apply to gene counts before passing to model.
 
-    labels_transform : :class:`~typing.Callable`
+    labels_transform : :class:`~collections.abc.Callable`
         Function to apply to conditional labels before passing to model.
 
     Notes
@@ -475,7 +475,6 @@ def distrib_dataset(
     batch_size=128,
     keep_train=None,
     keep_test=None,
-    batch_key: str = None,
     seed: int = None,
     **kwargs,
 ) -> tuple:
@@ -500,9 +499,6 @@ def distrib_dataset(
 
     keep_test : array_like, optional
         1D Array-like of `str`. Specifies the levels to keep in the test dataset. Elements must be from `levels.keys()`.
-
-    batch_key : :class:`str`, optional
-        Must not be `None` if `batch_key` was previously provided to `construct_labels`. The actual values is unimportant for this scope.
 
     seed : :class:`int`, optional
         Seed for random split operation to make it deterministic. Defaults to `None` which does not provide determinism.
@@ -662,28 +658,4 @@ def distrib_dataset(
             ),
         )
 
-    # If batch is appended to input, generate size priors per batch
-    if batch_key is not None:
-
-        # Batch processing for distrib_dataset
-        def _process_batch_dd(dset):
-            l_mean, l_scale = [], []
-
-            for batch in range(int(np.max(dset.counts[..., -1])) + 1):
-                idxs = np.nonzero(dset.counts[..., -1] == batch)[0]
-                subset = dset.counts[list(idxs)][..., :-1]
-                l_mean.append(np.mean(np.log(np.sum(np.array(subset), axis=-1))))
-                l_scale.append(np.var(np.log(np.sum(np.array(subset), axis=-1))))
-
-            return l_mean, l_scale
-
-        l_mean, l_scale = _process_batch_dd(train_set)
-
-    # If not, need a single size prior
-    else:
-        l_mean, l_scale = (
-            np.mean(np.log(np.sum(np.array(train_set.counts), axis=-1))),
-            np.var(np.log(np.sum(np.array(train_set.counts), axis=-1))),
-        )
-
-    return train_set, test_set, train_loader, test_loader, l_mean, l_scale
+    return train_set, test_set, train_loader, test_loader
