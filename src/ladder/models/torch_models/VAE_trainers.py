@@ -1,6 +1,7 @@
 """The VAE trainers module houses trainer classes used with VAE variants."""
 
 import numpy as np
+import pyro
 import pyro.optim as opt
 import torch
 import torch.utils.data as utils
@@ -44,7 +45,7 @@ class BasePyroTrainerMixin:
         opt=opt.Adam({"lr": 1e-3}),
         verbose: bool = True,
     ):
-
+        self.reset()
         self.train_losses, self.test_losses, self.epochs = [], [], 0
         self.verbose = verbose
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -79,6 +80,11 @@ class BasePyroTrainerMixin:
         self.train_losses.append(np.mean(train_losses))
         self.test_losses.append(np.mean(test_losses))
         self.epochs += 1
+
+    def reset(self):
+        """Resets Pyro parameter storage for continued training."""
+        pyro.clear_param_store()
+        self.train_losses, self.test_losses, self.epochs = [], [], 0
 
     def train(self):
         """Trains the attached model until the designated stop condition is reached."""
@@ -128,22 +134,32 @@ class ThresholdPyroTrainer(BasePyroTrainerMixin):
 
     def __init__(self, convergence_threshold: float = 1e-3, patience: int = 15, *args):
 
-        BasePyroTrainerMixin.__init__(*args)
+        BasePyroTrainerMixin.__init__(self, *args)
         self.convergence_threshold = convergence_threshold
         self.patience, self.max_patience = 0, patience
+
+    def reset(self):
+        """Resets Pyro parameter storage for continued training."""
+        BasePyroTrainerMixin.reset(self)
+        self.patience = 0
 
     def is_stop_condition(self):
         """Stop when patience runs out without improvement."""
         if not self.patience < self.max_patience:
             return True
 
-        if (
-            min(self.test_losses[:-1]) - self.test_losses[-1]
-            > self.convergence_threshold
-        ):
-            self.patience = 0
+        try:
 
-        else:
-            self.patience += 1
+            if (
+                min(self.test_losses[:-1]) - self.test_losses[-1]
+                > self.convergence_threshold
+            ):
+                self.patience = 0
+
+            else:
+                self.patience += 1
+
+        except ValueError:
+            pass
 
         return False
