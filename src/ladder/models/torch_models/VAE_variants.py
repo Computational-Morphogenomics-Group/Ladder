@@ -20,12 +20,24 @@ class VAEMixin:
 
     """
 
+    @staticmethod
+    def _get_input_args(*args):
+        return args
+
+    @staticmethod
+    def _get_latent_args(*args):
+        return args
+
+    @staticmethod
+    def _get_output_args(*args):
+        return args
+
     def save(self, path):
         """Saves model parameters to disk.
 
         Parameters
         ----------
-        path : :class:`str`
+        path : `str`
             Path to save model parameters.
         """
         torch.save(self.state_dict(), path + "_torch.pth")
@@ -36,10 +48,10 @@ class VAEMixin:
 
         Parameters
         ----------
-        path : :class:`str`
+        path : `str`
             Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth`.
 
-        map_location : :class:`str`, default: None
+        map_location : `str`, default: None
             Specifies where the model should be loaded. See :class:`~torch.device` for details.
         """
         pyro.clear_param_store()
@@ -55,21 +67,86 @@ class VAEMixin:
             pyro.get_param_store().load(path + "_pyro.pth", map_location=map_location)
 
 
-class GaussianVAE(VAEMixin, nn.Module):
+class GaussianVAEMixin(VAEMixin):
+    """Includes shared capabilities for GaussianVAE based models.
+
+    Methods
+    -------
+    model(*args)
+        Generative model for the gaussian VAE.
+
+    guide(*args)
+        Approximate variational posterior for the gaussian VAE.
+
+    """
+
+    def model(self, *args):
+        """Generative model for the base VAE.
+
+        Parameters
+        ----------
+        *args :
+            Static methods are used to pick the correct args from multiple args.
+        """
+        x = self._get_input_args(*args)
+
+        pyro.module("GaussianVAE", self)
+
+        with (
+            pyro.plate("batch", x.shape[0]),
+            pyro.poutine.scale(scale=1.0 / x.shape[0]),
+        ):
+
+            z_loc, z_scale = torch.zeros((x.shape[0], self.latent_dim)).to(
+                x.device
+            ), torch.ones((x.shape[0], self.latent_dim)).to(x.device)
+
+            z = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+
+            x_loc, x_scale = self.decoder(self._get_latent_args(z, *args))
+
+            pyro.sample(
+                "obs",
+                dist.Normal(x_loc, x_scale).to_event(1),
+                obs=self._get_output_args(*args),
+            )
+
+    def guide(self, *args):
+        """Approximate variational posterior for the base VAE.
+
+        Parameters
+        ----------
+        *args :
+            Static methods are used to pick the correct args from multiple args.
+        """
+        x = self._get_input_args(*args)
+
+        pyro.module("GaussianVAE", self)
+
+        with (
+            pyro.plate("batch", x.shape[0]),
+            pyro.poutine.scale(scale=1.0 / x.shape[0]),
+        ):
+            z_loc, z_scale = self.encoder(x)
+
+            pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+
+
+class GaussianVAE(GaussianVAEMixin, nn.Module):
     """Base VAE class.
 
     Parameters
     ----------
-    in_dim : :class:`int`
+    in_dim : `int`
         Size of the input / output space.
 
-    hidden_dim : :class:`float` or array_like
+    hidden_dim : `int` or array_like, default: 128
         Size of the hidden layers.
 
-    num_layers : :class:`float` or array_like
+    num_layers : `int` or array_like, default: 2
         Number of hidden layers.
 
-    latent_dim : :class:`int`, default: 10
+    latent_dim : `int`, default: 10
         Size of the latent variable `z`.
 
 
@@ -77,12 +154,6 @@ class GaussianVAE(VAEMixin, nn.Module):
     -------
     __init__(in_dim, hidden_dim=128, num_layers=2, latent_dim=10)
         Constructor for the base VAE.
-
-    model(x, y=None)
-        Generative model for the base VAE.
-
-    guide(x, y=None)
-        Approximate variational posterior for the base VAE.
 
     """
 
@@ -94,54 +165,78 @@ class GaussianVAE(VAEMixin, nn.Module):
         latent_dim: int = 10,
     ):
         nn.Module.__init__(self)
-        self.latent_dim = latent_dim
+        self.latent_dim, self.in_dim = latent_dim, in_dim
 
         self.encoder = GaussianMLP(in_dim, [hidden_dim] * num_layers, self.latent_dim)
         self.decoder = GaussianMLP(self.latent_dim, [hidden_dim] * num_layers, in_dim)
 
-    def model(self, *args):
-        """Generative model for the base VAE.
+    @staticmethod
+    def _get_input_args(*args):
+        return args[0]
 
-        Parameters
-        ----------
-        *args :
-            Only the first element will be used as input. Expected input batch with shape (N, in_dim).
-        """
-        x = args[0]
+    @staticmethod
+    def _get_latent_args(z, *args):
+        return z
 
-        pyro.module("GaussianVAE", self)
+    @staticmethod
+    def _get_output_args(*args):
+        return args[0]
 
-        with (
-            pyro.plate("batch", x.shape[0]),
-            pyro.poutine.scale(scale=1.0 / x.shape[0]),
-        ):
 
-            z_loc, z_scale = x.new_zeros(
-                torch.Size((x.shape[0], self.latent_dim))
-            ), x.new_ones(torch.Size((x.shape[0], self.latent_dim)))
+class GaussianCVAE(GaussianVAEMixin, nn.Module):
+    """Conditional VAE class.
 
-            z = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+    Parameters
+    ----------
+    in_dim : `int`
+        Size of the input / output space.
 
-            x_loc, x_scale = self.decoder(z)
+    labels_dim : `int`
+        Size of the labels.
 
-            pyro.sample("obs", dist.Normal(x_loc, x_scale).to_event(1), obs=x)
+    hidden_dim : `int` or array_like, default: 128
+        Size of the hidden layers.
 
-    def guide(self, *args):
-        """Approximate variational posterior for the base VAE.
+    num_layers : `int` or array_like, default: 2
+        Number of hidden layers.
 
-        Parameters
-        ----------
-        *args :
-            Only the first element will be used as input. Expected input batch with shape (N, in_dim).
-        """
-        x = args[0]
+    latent_dim : `int`, default: 10
+        Size of the latent variable `z`.
 
-        pyro.module("GaussianVAE", self)
 
-        with (
-            pyro.plate("batch", x.shape[0]),
-            pyro.poutine.scale(scale=1.0 / x.shape[0]),
-        ):
-            z_loc, z_scale = self.encoder(x)
+    Methods
+    -------
+    __init__(in_dim, labels_dim, hidden_dim=128, num_layers=2, latent_dim=10)
+        Constructor for the CVAE.
 
-            pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        label_dim: int,
+        hidden_dim: int = 128,
+        num_layers: int = 2,
+        latent_dim: int = 10,
+    ):
+        nn.Module.__init__(self)
+        self.latent_dim = latent_dim
+
+        self.encoder = GaussianMLP(
+            in_dim + label_dim, [hidden_dim] * num_layers, self.latent_dim
+        )
+        self.decoder = GaussianMLP(
+            self.latent_dim + label_dim, [hidden_dim] * num_layers, in_dim
+        )
+
+    @staticmethod
+    def _get_input_args(*args):
+        return torch.concatenate(args[:2], dim=-1)
+
+    @staticmethod
+    def _get_latent_args(z, *args):
+        return torch.concatenate((z, args[1]), dim=-1)
+
+    @staticmethod
+    def _get_output_args(*args):
+        return args[0]
