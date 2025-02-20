@@ -247,7 +247,11 @@ class GaussianCVAE(_GaussianVAEMixin, nn.Module):
         kl_weight: float = 1.0,
     ):
         nn.Module.__init__(self)
-        self.latent_dim = latent_dim
+        self.latent_dim, self.recon_weight, self.kl_weight = (
+            latent_dim,
+            recon_weight,
+            kl_weight,
+        )
 
         self.encoder = GaussianMLP(
             in_dim + label_dim, [hidden_dim] * num_layers, self.latent_dim
@@ -333,7 +337,14 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
         w_kl_weight: float = 1.0,
     ):
         nn.Module.__init__(self)
-        self.latent_dim, self.w_dim, self.label_dims = latent_dim, w_dim, label_dims
+        (
+            self.latent_dim,
+            self.w_dim,
+            self.label_dims,
+            self.recon_weight,
+            self.z_kl_weight,
+            self.w_kl_weight,
+        ) = (latent_dim, w_dim, label_dims, recon_weight, z_kl_weight, w_kl_weight)
 
         self.encoder = GaussianMLP(
             in_dim + sum(self.label_dims),
