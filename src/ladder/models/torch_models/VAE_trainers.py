@@ -1,11 +1,15 @@
 """The VAE trainers module houses trainer classes used with VAE variants."""
 
+import warnings
+from typing import Literal
+
 import numpy as np
 import pyro
 import pyro.optim as opt
 import torch
 import torch.utils.data as utils
-from pyro.infer import SVI, Trace_ELBO
+from pyro.infer import SVI, Predictive, Trace_ELBO
+from pyro.poutine import uncondition
 from torch import nn
 
 
@@ -54,6 +58,41 @@ class _BasePyroTrainerMixin:
         self.model, self.elbo, self.optim = model.to(self.device), Trace_ELBO(), optim
         self.svi = SVI(self.model.model, self.model.guide, self.optim, self.elbo)
 
+    def get_variables(self, which: Literal["train", "test"] = "train"):
+        try:
+            assert self.predictive is not None
+        except AssertionError:
+            warnings.warn(
+                "Predictive missing, please run training before calling the trainer for predictions, returning None.",
+                stacklevel=2,
+            )
+            return None
+
+        match which:
+            case "train":
+                return self.predictive(
+                    *self._send_args_to_device(
+                        self.train_loader.dataset[:], self.device
+                    )
+                )
+
+            case "test":
+                return self.predictive(
+                    *self._send_args_to_device(self.test_loader.dataset[:], self.device)
+                )
+
+            case _:
+                warnings.warn(
+                    'Invalid args for "which". Please enter either "train" or "test", returning None.',
+                    stacklevel=2,
+                )
+                return None
+
+    def _predictive_setup(self):
+        self.predictive = Predictive(
+            uncondition(self.model.model), guide=self.model.guide, num_samples=1
+        )
+
     def train_single_epoch(self):
         """Trains the attached model for a single pass through the dataset."""
         self.model.train()
@@ -90,6 +129,8 @@ class _BasePyroTrainerMixin:
         """Trains the attached model until the designated stop condition is reached."""
         while not self.is_stop_condition():
             self.train_single_epoch()
+
+        self._predictive_setup()
 
     def is_stop_condition(self):
         """Defines the stop condition for the model."""
