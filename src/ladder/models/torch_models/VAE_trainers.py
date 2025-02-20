@@ -9,7 +9,7 @@ from pyro.infer import SVI, Trace_ELBO
 from torch import nn
 
 
-class BasePyroTrainerMixin:
+class _BasePyroTrainerMixin:
     """Mixin for basic Pyro models. All losses should be available through a pass of model & guide. Do NOT instantiate.
 
     Parameters
@@ -23,7 +23,7 @@ class BasePyroTrainerMixin:
     test_loader : :class:`~torch.utils.data.DataLoader`
         Data loader for the test set.
 
-    opt : :class:`~pyro.optim.PyroOptim`, default: None
+    optim : :class:`~pyro.optim.PyroOptim`, default: None
         Optimizer to be used for training. Defaults to :class:`~pyro.optim.Adam` with learning rate 1e-3 and default parameters.
 
     verbose : `bool`, default: False
@@ -42,7 +42,7 @@ class BasePyroTrainerMixin:
         model: nn.Module,
         train_loader: utils.DataLoader,
         test_loader: utils.DataLoader,
-        opt=opt.Adam({"lr": 1e-3}),
+        optim=opt.Adam({"lr": 1e-3}),
         verbose: bool = True,
     ):
         self.reset()
@@ -51,8 +51,8 @@ class BasePyroTrainerMixin:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.train_loader, self.test_loader = train_loader, test_loader
-        self.model, self.elbo, self.opt = model.to(self.device), Trace_ELBO(), opt
-        self.svi = SVI(self.model.model, self.model.guide, self.opt, self.elbo)
+        self.model, self.elbo, self.optim = model.to(self.device), Trace_ELBO(), optim
+        self.svi = SVI(self.model.model, self.model.guide, self.optim, self.elbo)
 
     def train_single_epoch(self):
         """Trains the attached model for a single pass through the dataset."""
@@ -74,7 +74,7 @@ class BasePyroTrainerMixin:
 
         if self.verbose:
             print(
-                f"Epoch : {self.epochs + 1} || Train Loss: {np.mean(train_losses).round(5)} || Test Loss: {np.mean(test_losses).round(5)}"
+                f"Epoch : {self.epochs + 1} || Train Loss: {np.mean(train_losses).round(3)} || Test Loss: {np.mean(test_losses).round(3)}"
             )
 
         self.train_losses.append(np.mean(train_losses))
@@ -96,20 +96,84 @@ class BasePyroTrainerMixin:
         pass
 
 
-class EpochPyroTrainer(BasePyroTrainerMixin):
-    """Trainer class that stops upon reaching the designated number of epochs.
+class _AdversarialPyroTrainerMixin(_BasePyroTrainerMixin):
+    """Mixin for Pyro models with adversarial loss (CSVAE). Do NOT instantiate."""
 
-    Parameters
-    ----------
-    max_epochs : int
-        Number of epochs to run the model for.
+    def __init__(
+        self,
+        *args,
+    ):
+        _BasePyroTrainerMixin.__init__(self, *args)
+        params = dict(self.model.named_parameters())
 
-    *args :
-        All other arguments passed to :class:`BasePyroTrainerMixin`
-    """
+        classifier_params, model_params = [], []
 
-    def __init__(self, max_epochs: int, *args):
-        BasePyroTrainerMixin.__init__(self, *args)
+        for k, v in params.items():
+            if "classifiers" in k:
+                classifier_params.append(v)
+
+            else:
+                model_params.append(v)
+
+        self.model_opt = self.optim.pt_optim_constructor(
+            model_params, **self.optim.pt_optim_args
+        )
+        self.classifier_opt = self.optim.pt_optim_constructor(
+            classifier_params, **self.optim.pt_optim_args
+        )
+        self.svi = None
+
+    def _train_step_classifier(self, *args):
+        self.classifier_opt.zero_grad()
+        self.model.classification(*args).mean().backward()
+        self.classifier_opt.step()
+
+    def _train_step_model(self, *args):
+        loss = self.elbo.differentiable_loss(self.model.model, self.model.guide, *args)
+        self.model_opt.zero_grad()
+        loss.backward()
+        self.model_opt.step()
+
+        return loss.detach().cpu()
+
+    def train_single_epoch(self):
+        """Trains the attached model with adversarial loss for a single pass through the dataset."""
+        self.model.train()
+
+        train_losses, test_losses = [], []
+
+        for args in self.train_loader:
+            args = self._send_args_to_device(args, self.device)
+
+            self._train_step_classifier(*args)
+            train_losses.append(self._train_step_model(*args))
+
+        self.model.eval()
+        with torch.no_grad():
+            for args in self.test_loader:
+                args = self._send_args_to_device(args, self.device)
+                test_losses.append(
+                    self.elbo.differentiable_loss(
+                        self.model.model, self.model.guide, *args
+                    )
+                    .detach()
+                    .cpu()
+                )
+
+        if self.verbose:
+            print(
+                f"Epoch : {self.epochs + 1} || Train Loss: {np.mean(train_losses).round(3)} || Test Loss: {np.mean(test_losses).round(3)}"
+            )
+
+        self.train_losses.append(np.mean(train_losses))
+        self.test_losses.append(np.mean(test_losses))
+        self.epochs += 1
+
+
+class _EpochMixin:
+    """Adds epoch based stopping capability."""
+
+    def __init__(self, max_epochs: int):
         self.max_epochs = max_epochs
 
     def is_stop_condition(self):
@@ -117,31 +181,12 @@ class EpochPyroTrainer(BasePyroTrainerMixin):
         return self.epochs >= self.max_epochs
 
 
-class ThresholdPyroTrainer(BasePyroTrainerMixin):
-    """Trainer class that stops upon reaching the designated number of epochs.
+class _ThresholdMixin:
+    """Adds threshold based stopping capability"""
 
-    Parameters
-    ----------
-    convergence_threshold : float, default: 1e-3
-        Minimum improvement required to keep the model running.
-
-    patience : int, default: 15
-        Number of epochs allowed for minimum improvement to be observed.
-
-    *args :
-        All other arguments passed to :class:`BasePyroTrainerMixin`
-    """
-
-    def __init__(self, convergence_threshold: float = 1e-3, patience: int = 15, *args):
-
-        BasePyroTrainerMixin.__init__(self, *args)
+    def __init__(self, convergence_threshold, patience):
         self.convergence_threshold = convergence_threshold
         self.patience, self.max_patience = 0, patience
-
-    def reset(self):
-        """Resets Pyro parameter storage for continued training."""
-        BasePyroTrainerMixin.reset(self)
-        self.patience = 0
 
     def is_stop_condition(self):
         """Stop when patience runs out without improvement."""
@@ -163,3 +208,87 @@ class ThresholdPyroTrainer(BasePyroTrainerMixin):
             pass
 
         return False
+
+
+class EpochPyroTrainer(_EpochMixin, _BasePyroTrainerMixin):
+    """Trainer class that stops upon reaching the designated number of epochs.
+
+    Parameters
+    ----------
+    max_epochs : int
+        Number of epochs to run the model for.
+
+    *args :
+        All other arguments passed to :class:`BasePyroTrainerMixin`
+    """
+
+    def __init__(self, max_epochs: int, *args):
+        _BasePyroTrainerMixin.__init__(self, *args)
+        _EpochMixin.__init__(self, max_epochs)
+
+
+class ThresholdPyroTrainer(_ThresholdMixin, _BasePyroTrainerMixin):
+    """Trainer class that stops upon reaching the designated number of epochs.
+
+    Parameters
+    ----------
+    convergence_threshold : float, default: 1e-3
+        Minimum improvement required to keep the model running.
+
+    patience : int, default: 15
+        Number of epochs allowed for minimum improvement to be observed.
+
+    *args :
+        All other arguments passed to :class:`BasePyroTrainerMixin`
+    """
+
+    def __init__(self, convergence_threshold: float = 1e-3, patience: int = 15, *args):
+        _BasePyroTrainerMixin.__init__(self, *args)
+        _ThresholdMixin.__init__(self, convergence_threshold, patience)
+
+    def reset(self):
+        """Resets Pyro parameter storage for continued training."""
+        _BasePyroTrainerMixin.reset(self)
+        self.patience = 0
+
+
+class AdversarialEpochPyroTrainer(_EpochMixin, _AdversarialPyroTrainerMixin):
+    """Adversarial trainer class that stops upon reaching the designated number of epochs.
+
+    Parameters
+    ----------
+    max_epochs : int
+        Number of epochs to run the model for.
+
+    *args :
+        All other arguments passed to :class:`BasePyroTrainerMixin`
+    """
+
+    def __init__(self, max_epochs: int, *args):
+        _AdversarialPyroTrainerMixin.__init__(self, *args)
+        _EpochMixin.__init__(self, max_epochs)
+
+
+class AdversarialThresholdPyroTrainer(_ThresholdMixin, _AdversarialPyroTrainerMixin):
+    """Adversarial trainer class that stops upon reaching the designated number of epochs.
+
+    Parameters
+    ----------
+    convergence_threshold : float, default: 1e-3
+        Minimum improvement required to keep the model running.
+
+    patience : int, default: 15
+        Number of epochs allowed for minimum improvement to be observed.
+
+    *args :
+        All other arguments passed to :class:`BasePyroTrainerMixin`
+    """
+
+    def __init__(self, convergence_threshold: float = 1e-3, patience: int = 15, *args):
+        _AdversarialPyroTrainerMixin.__init__(self, *args)
+        _ThresholdMixin.__init__(self, convergence_threshold, patience)
+
+    def reset(self):
+        """Resets Pyro parameter storage for continued training."""
+        _AdversarialPyroTrainerMixin.reset(self)
+        self.patience = 0
