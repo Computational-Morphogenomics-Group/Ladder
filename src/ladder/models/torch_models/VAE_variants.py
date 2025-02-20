@@ -295,7 +295,7 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
         latent_dim: int = 10,
         w_dim: int = 2,
         w_locs: list = None,
-        w_scales: list = None[0.1, 1.0],
+        w_scales: list = None,
     ):
         nn.Module.__init__(self)
         self.latent_dim, self.w_dim, self.label_dims = latent_dim, w_dim, label_dims
