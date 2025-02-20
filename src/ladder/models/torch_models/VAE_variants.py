@@ -155,6 +155,12 @@ class GaussianVAE(_GaussianVAEMixin, nn.Module):
     latent_dim : `int`, default: 10
         Size of the latent variable `z`.
 
+    recon_weight : `float`, default: 20.
+        Weight of the reconstruction loss for the VAE.
+
+    kl_weight : `float`, default: 1.
+        Weight of the KL divergence loss for the VAE.
+
 
     Methods
     -------
@@ -169,7 +175,7 @@ class GaussianVAE(_GaussianVAEMixin, nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 2,
         latent_dim: int = 10,
-        recon_weight: float = 10.0,
+        recon_weight: float = 20.0,
         kl_weight: float = 1.0,
     ):
         nn.Module.__init__(self)
@@ -216,6 +222,12 @@ class GaussianCVAE(_GaussianVAEMixin, nn.Module):
     latent_dim : `int`, default: 10
         Size of the latent variable `z`.
 
+    recon_weight : `float`, default: 20.
+        Weight of the reconstruction loss for the VAE.
+
+    kl_weight : `float`, default: 1.
+        Weight of the KL divergence loss for the VAE.
+
 
     Methods
     -------
@@ -231,6 +243,8 @@ class GaussianCVAE(_GaussianVAEMixin, nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 2,
         latent_dim: int = 10,
+        recon_weight: float = 20.0,
+        kl_weight: float = 1.0,
     ):
         nn.Module.__init__(self)
         self.latent_dim = latent_dim
@@ -284,7 +298,14 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
     w_scales : `list` of `float`, default: [0.1, 1.]
         Prior variances for the corresponding label dimension being 0 or 1 respectively.
 
+    recon_weight : `float`, default: 20.
+        Weight of the reconstruction loss for the CSVAE.
 
+    z_kl_weight : `float`, default: 0.2
+        Weight of the KL divergence loss for the common latent variable of the CSVAE.
+
+    w_kl_weight : `float`, default: 1.
+        Weight of the KL divergence loss for the conditional latent variable of the CSVAE.
 
 
     Methods
@@ -307,6 +328,9 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
         w_dim: int = 2,
         w_locs: list = None,
         w_scales: list = None,
+        recon_weight: float = 20.0,
+        z_kl_weight: float = 0.2,
+        w_kl_weight: float = 1.0,
     ):
         nn.Module.__init__(self)
         self.latent_dim, self.w_dim, self.label_dims = latent_dim, w_dim, label_dims
@@ -404,16 +428,20 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
                 dim=-1,
             )
 
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-            w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+            with poutine.scale(None, self.z_kl_weight):
+                z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+
+            with poutine.scale(None, self.w_kl_weight):
+                w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
 
             x_loc, x_scale = self.decoder(torch.concatenate((z, w), dim=-1))
 
-            pyro.sample(
-                "obs",
-                dist.Normal(x_loc, x_scale).to_event(1),
-                obs=self._get_output_args(*args),
-            )
+            with poutine.scale(None, self.recon_weight):
+                pyro.sample(
+                    "obs",
+                    dist.Normal(x_loc, x_scale).to_event(1),
+                    obs=self._get_output_args(*args),
+                )
 
     def guide(self, *args):
         """Approximate variational posterior for the base VAE.
@@ -440,8 +468,12 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
                 zw_scale[..., self.latent_dim :],
             )
 
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-            pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+            with poutine.scale(None, self.z_kl_weight):
+                z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+
+            with poutine.scale(None, self.w_kl_weight):
+                pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+
             pyro.factor(
                 "adversarial_loss",
                 self._adversarial_from_encodings(z, self._get_label_args(*args)),
