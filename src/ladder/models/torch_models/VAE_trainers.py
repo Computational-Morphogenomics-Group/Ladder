@@ -203,7 +203,12 @@ class _AdversarialPyroTrainerMixin(_BasePyroTrainerMixin):
 
         if self.verbose:
             print(
-                f"Epoch : {self.epochs + 1} || Train Loss: {np.mean(train_losses).round(3)} || Test Loss: {np.mean(test_losses).round(3)}"
+                "Epoch :",
+                self.epochs + 1,
+                "|| Train Loss:",
+                np.mean(train_losses).round(3),
+                "|| Test Loss:",
+                np.mean(test_losses).round(3),
             )
 
         self.train_losses.append(np.mean(train_losses))
