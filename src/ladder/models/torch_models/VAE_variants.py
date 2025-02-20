@@ -287,13 +287,12 @@ class _GaussianHCCVAEMixin(_GaussianCCVAEMixin):
         with poutine.scale(None, self.w_kl_weight):
             w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
 
-        x_loc_w, x_scale_w = self.decoder(torch.concatenate((z, w), dim=-1))
-        x_loc_z, x_scale_z = self.decoder_z(z)
+        x_loc, x_scale = self.decoder(torch.concatenate((z, w), dim=-1))
 
-        with poutine.scale(None, self.w_recon_weight):
+        with poutine.scale(None, self.recon_weight):
             pyro.sample(
                 "obs",
-                dist.Normal(x_loc_w, x_scale_w).to_event(1),
+                dist.Normal(x_loc, x_scale).to_event(1),
                 obs=self._get_output_args(*args),
             )
 
@@ -798,11 +797,8 @@ class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
     w_scales : `list` of `float`, default: [0.1, 1.]
         Prior variances for the corresponding label dimension being 0 or 1 respectively.
 
-    z_recon_weight : `float`, default: 20.
-        Weight of the reconstruction loss from common latent variable for the HCCVAE.
-
-    w_recon_weight : `float`, default: 20.
-        Weight of the reconstruction loss from conditional latent variable for the HCCVAE.
+    recon_weight : `float`, default: 20.
+        Weight of the reconstruction loss for the HCCVAE.
 
     z_kl_weight : `float`, default: 0.2
         Weight of the KL divergence loss for the common latent variable of the HCCVAE.
@@ -828,8 +824,7 @@ class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
         w_dim: int = 2,
         w_locs: list = None,
         w_scales: list = None,
-        z_recon_weight: float = 20.0,
-        w_recon_weight: float = 20.0,
+        recon_weight: float = 20.0,
         z_kl_weight: float = 0.2,
         w_kl_weight: float = 1.0,
     ):
@@ -838,16 +833,14 @@ class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
             self.latent_dim,
             self.w_dim,
             self.label_dims,
-            self.z_recon_weight,
-            self.w_recon_weight,
+            self.recon_weight,
             self.z_kl_weight,
             self.w_kl_weight,
         ) = (
             latent_dim,
             w_dim,
             label_dims,
-            z_recon_weight,
-            w_recon_weight,
+            recon_weight,
             z_kl_weight,
             w_kl_weight,
         )
@@ -945,11 +938,8 @@ class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
     w_scales : `list` of `float`, default: [0.1, 1.]
         Prior variances for the corresponding label dimension being 0 or 1 respectively.
 
-    z_recon_weight : `float`, default: 20.
-        Weight of the reconstruction loss from common latent variable for the HCCVAE.
-
-    w_recon_weight : `float`, default: 20.
-        Weight of the reconstruction loss from conditional latent variable for the HCCVAE.
+    recon_weight : `float`, default: 20.
+        Weight of the reconstruction loss for the HCCVAE.
 
     z_kl_weight : `float`, default: 0.2
         Weight of the KL divergence loss for the common latent variable of the HCCVAE.
