@@ -4,6 +4,7 @@ import numpy as np
 import pyro
 import pyro.distributions as dist
 import torch
+from pyro import poutine
 from torch import nn
 
 from .MLP_variants import MLP, GaussianMLP
@@ -96,22 +97,24 @@ class _GaussianVAEMixin(_ModelMixin):
 
         with (
             pyro.plate("batch", x.shape[0]),
-            pyro.poutine.scale(scale=1.0 / x.shape[0]),
+            poutine.scale(scale=1.0 / x.shape[0]),
         ):
 
             z_loc, z_scale = torch.zeros((x.shape[0], self.latent_dim)).to(
                 x.device
             ), torch.ones((x.shape[0], self.latent_dim)).to(x.device)
 
-            z = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+            with poutine.scale(None, self.kl_weight):
+                z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
             x_loc, x_scale = self.decoder(self._get_latent_args(z, *args))
 
-            pyro.sample(
-                "obs",
-                dist.Normal(x_loc, x_scale).to_event(1),
-                obs=self._get_output_args(*args),
-            )
+            with poutine.scale(None, self.recon_weight):
+                pyro.sample(
+                    "obs",
+                    dist.Normal(x_loc, x_scale).to_event(1),
+                    obs=self._get_output_args(*args),
+                )
 
     def guide(self, *args):
         """Approximate variational posterior for the base VAE.
@@ -127,11 +130,12 @@ class _GaussianVAEMixin(_ModelMixin):
 
         with (
             pyro.plate("batch", x.shape[0]),
-            pyro.poutine.scale(scale=1.0 / x.shape[0]),
+            poutine.scale(scale=1.0 / x.shape[0]),
         ):
             z_loc, z_scale = self.encoder(x)
 
-            pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+            with poutine.scale(None, self.kl_weight):
+                pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
 
 class GaussianVAE(_GaussianVAEMixin, nn.Module):
@@ -165,9 +169,16 @@ class GaussianVAE(_GaussianVAEMixin, nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 2,
         latent_dim: int = 10,
+        recon_weight: float = 10.0,
+        kl_weight: float = 1.0,
     ):
         nn.Module.__init__(self)
-        self.latent_dim, self.in_dim = latent_dim, in_dim
+        self.latent_dim, self.in_dim, self.recon_weight, self.kl_weight = (
+            latent_dim,
+            in_dim,
+            recon_weight,
+            kl_weight,
+        )
 
         self.encoder = GaussianMLP(in_dim, [hidden_dim] * num_layers, self.latent_dim)
         self.decoder = GaussianMLP(self.latent_dim, [hidden_dim] * num_layers, in_dim)
@@ -366,7 +377,7 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
 
         with (
             pyro.plate("batch", x.shape[0]),
-            pyro.poutine.scale(scale=1.0 / x.shape[0]),
+            poutine.scale(scale=1.0 / x.shape[0]),
         ):
 
             z_loc, z_scale = torch.zeros((x.shape[0], self.latent_dim)).to(
@@ -418,7 +429,7 @@ class GaussianCSVAE(_GaussianVAEMixin, nn.Module):
 
         with (
             pyro.plate("batch", x.shape[0]),
-            pyro.poutine.scale(scale=1.0 / x.shape[0]),
+            poutine.scale(scale=1.0 / x.shape[0]),
         ):
             zw_loc, zw_scale = self.encoder(x)
 
