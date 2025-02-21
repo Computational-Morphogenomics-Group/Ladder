@@ -27,16 +27,16 @@ class GaussianVAE(_VAEMixin, nn.Module):
     latent_dim : `int`, default: 10
         Size of the latent variable `z`.
 
-    recon_weight : `float`, default: 20.
+    recon_weight : `float`, default: 20.0
         Weight of the reconstruction loss for the VAE.
 
-    kl_weight : `float`, default: 1.
+    kl_weight : `float`, default: 1.0
         Weight of the KL divergence loss for the VAE.
 
 
     Methods
     -------
-    __init__(in_dim, hidden_dim=128, num_layers=2, latent_dim=10)
+    __init__(in_dim, hidden_dim=128, num_layers=2, latent_dim=10, recon_weight=20.0, kl_weight=1.0)
         Constructor for the base VAE.
 
     """
@@ -97,16 +97,16 @@ class GaussianCVAE(GaussianVAE, nn.Module):
     latent_dim : `int`, default: 10
         Size of the latent variable `z`.
 
-    recon_weight : `float`, default: 20.
-        Weight of the reconstruction loss for the VAE.
+    recon_weight : `float`, default: 20.0
+        Weight of the reconstruction loss for the CVAE.
 
-    kl_weight : `float`, default: 1.
-        Weight of the KL divergence loss for the VAE.
+    kl_weight : `float`, default: 1.0
+        Weight of the KL divergence loss for the CVAE.
 
 
     Methods
     -------
-    __init__(in_dim, labels_dim, hidden_dim=128, num_layers=2, latent_dim=10)
+    __init__(in_dim, labels_dim, hidden_dim=128, num_layers=2, latent_dim=10, recon_weight=20.0, kl_weight=1.0)
         Constructor for the CVAE.
 
     """
@@ -186,7 +186,7 @@ class GaussianCCVAE(_CCVAEMixin, nn.Module):
 
     Methods
     -------
-    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10)
+    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10, w_dim=2, w_locs=None, w_scale=None, recon_weight=20.0, z_kl_weight=0.2, w_kl_weight=1.0)
         Constructor for the CCVAE.
 
     """
@@ -304,28 +304,28 @@ class GaussianCSVAE(GaussianCCVAE, _AdversarialMixin, nn.Module):
     w_dim : `int`, default: 2
         Size of the latent variable `w`, assumed to be correlated with condition labels
 
-    w_locs : `list` of `float`, default: [0., 3.]
+    w_locs : `list` of `float`, default: [0., 3.0]
         Prior means for the corresponding label dimension being 0 or 1 respectively.
 
-    w_scales : `list` of `float`, default: [0.1, 1.]
+    w_scales : `list` of `float`, default: [0.1, 1.0]
         Prior variances for the corresponding label dimension being 0 or 1 respectively.
 
-    recon_weight : `float`, default: 20.
+    recon_weight : `float`, default: 20.0
         Weight of the reconstruction loss for the CSVAE.
 
     z_kl_weight : `float`, default: 0.2
         Weight of the KL divergence loss for the common latent variable of the CSVAE.
 
-    w_kl_weight : `float`, default: 1.
+    w_kl_weight : `float`, default: 1.0
         Weight of the KL divergence loss for the conditional latent variable of the CSVAE.
 
-    adversarial_weight : `float`, default: 1.
+    adversarial_weight : `float`, default: 1.0
         Weight of the adversarial loss.
 
 
     Methods
     -------
-    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10)
+    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10,  w_dim=2, w_locs=None, w_scale=None, recon_weight=20.0, z_kl_weight=0.2, w_kl_weight=1.0, adversarial_weight=1.0)
         Constructor for the CSVAE.
 
     adversarial(*args)
@@ -452,20 +452,20 @@ class GaussianHCCVAE(_HCCVAEMixin, nn.Module):
     w_dim : `int`, default: 2
         Size of the latent variable `w`, assumed to be correlated with condition labels
 
-    recon_weight : `float`, default: 20.
+    recon_weight : `float`, default: 20.0
         Weight of the reconstruction loss for the HCCVAE.
 
     z_kl_weight : `float`, default: 0.2
         Weight of the KL divergence loss for the common latent variable of the HCCVAE.
 
-    w_kl_weight : `float`, default: 1.
+    w_kl_weight : `float`, default: 1.0
         Weight of the KL divergence loss for the conditional latent variable of the HCCVAE.
 
 
     Methods
     -------
-    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10)
-        Constructor for the CCVAE.
+    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10,  w_dim=10, recon_weight=20.0, z_kl_weight=0.2, w_kl_weight=1.0)
+        Constructor for the HCCVAE.
 
     """
 
@@ -582,20 +582,20 @@ class GaussianHCCVAEDL(GaussianHCCVAE, nn.Module):
     w_dim : `int`, default: 2
         Size of the latent variable `w`, assumed to be correlated with condition labels
 
-    recon_weight : `float`, default: 20.
+    recon_weight : `float`, default: 20.0
         Weight of the reconstruction loss for the HCCVAE.
 
     z_kl_weight : `float`, default: 0.2
         Weight of the KL divergence loss for the common latent variable of the HCCVAE.
 
-    w_kl_weight : `float`, default: 1.
+    w_kl_weight : `float`, default: 1.0
         Weight of the KL divergence loss for the conditional latent variable of the HCCVAE.
 
 
     Methods
     -------
-    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10)
-        Constructor for the CCVAE.
+    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10,  w_dim=10, recon_weight=20.0, z_kl_weight=0.2, w_kl_weight=1.0)
+        Constructor for the HCCVAE.
 
     """
 
@@ -682,22 +682,23 @@ class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
     w_dim : `int`, default: 2
         Size of the latent variable `w`, assumed to be correlated with condition labels
 
-    recon_weight : `float`, default: 20.
+    recon_weight : `float`, default: 20.0
         Weight of the reconstruction loss for the HCCVAE.
 
     z_kl_weight : `float`, default: 0.2
-        Weight of the KL divergence loss for the common latent variable of the HCCVAE.
+        Weight of the KL divergence loss for the common latent variable of the HCSVAE.
 
-    w_kl_weight : `float`, default: 1.
-        Weight of the KL divergence loss for the conditional latent variable of the HCCVAE.
+    w_kl_weight : `float`, default: 1.0
+        Weight of the KL divergence loss for the conditional latent variable of the HCSVAE.
 
-    adversarial_weight : `float`, default: 1.
+    adversarial_weight : `float`, default: 1.0
+        Weight of the adversarial loss term.
 
 
     Methods
     -------
-    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10)
-        Constructor for the CCVAE.
+    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10, w_dim=10, recon_weight=20.0, z_kl_weight=0.2, w_kl_weight=1.0, adversarial_weight=1.0)
+        Constructor for the HCSVAE.
 
     adversarial(*args)
         Calculates classifier / adversarial loss from inputs.
