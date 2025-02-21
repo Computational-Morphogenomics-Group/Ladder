@@ -1,6 +1,5 @@
 """The VAE variants module houses base model definitions for VAE style models."""
 
-import numpy as np
 import pyro
 import pyro.distributions as dist
 import torch
@@ -8,359 +7,10 @@ from pyro import poutine
 from torch import nn
 
 from .MLP_variants import MLP, GaussianMLP
+from .VAE_mixins import _AdversarialMixin, _CCVAEMixin, _HCCVAEMixin, _VAEMixin
 
 
-class _ModelMixin:
-    """Includes shared capabilities for models.
-
-    Methods
-    -------
-    save(path)
-        Saves model parameters to disk.
-
-    load(path, map_location=None)
-        Loads model parameters from disk.
-
-    """
-
-    def save(self, path):
-        """Saves model parameters to disk.
-
-        Parameters
-        ----------
-        path : `str`
-            Path to save model parameters.
-        """
-        torch.save(self.state_dict(), path + "_torch.pth")
-        pyro.get_param_store().save(path + "_pyro.pth")
-
-    def load(self, path, map_location=None):
-        """Loads model parameters from disk.
-
-        Parameters
-        ----------
-        path : `str`
-            Path to find model parameters. Should not include the extensions `_torch.pth` or `_pyro.pth`.
-
-        map_location : `str`, default: None
-            Specifies where the model should be loaded. See :class:`~torch.device` for details.
-        """
-        pyro.clear_param_store()
-
-        if map_location is None:
-            self.load_state_dict(torch.load(path + "_torch.pth"))
-            pyro.get_param_store().load(path + "_pyro.pth")
-
-        else:
-            self.load_state_dict(
-                torch.load(path + "_torch.pth", map_location=map_location)
-            )
-            pyro.get_param_store().load(path + "_pyro.pth", map_location=map_location)
-
-
-class _GaussianVAEMixin(_ModelMixin):
-    """Includes shared capabilities for GaussianVAE based models.
-
-    Methods
-    -------
-    model(*args)
-        Generative model for the gaussian VAE.
-
-    guide(*args)
-        Approximate variational posterior for the gaussian VAE.
-
-    """
-
-    @staticmethod
-    def _get_input_args(*args):
-        return args
-
-    @staticmethod
-    def _get_latent_args(*args):
-        return args
-
-    @staticmethod
-    def _get_output_args(*args):
-        return args
-
-    def model(self, *args):
-        """Generative model for the base VAE.
-
-        Parameters
-        ----------
-        *args :
-            Static methods are used to pick the correct args from multiple args.
-        """
-        x = self._get_input_args(*args)
-
-        pyro.module(self.__class__.__name__, self)
-
-        with (
-            pyro.plate("batch", x.shape[0]),
-            poutine.scale(scale=1.0 / x.shape[0]),
-        ):
-
-            z_loc, z_scale = torch.zeros((x.shape[0], self.latent_dim)).to(
-                x.device
-            ), torch.ones((x.shape[0], self.latent_dim)).to(x.device)
-
-            with poutine.scale(None, self.kl_weight):
-                z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-
-            x_loc, x_scale = self.decoder(self._get_latent_args(z, *args))
-
-            with poutine.scale(None, self.recon_weight):
-                pyro.sample(
-                    "obs",
-                    dist.Normal(x_loc, x_scale).to_event(1),
-                    obs=self._get_output_args(*args),
-                )
-
-    def guide(self, *args):
-        """Approximate variational posterior for the base VAE.
-
-        Parameters
-        ----------
-        *args :
-            Static methods are used to pick the correct args from multiple args.
-        """
-        x = self._get_input_args(*args)
-
-        pyro.module(self.__class__.__name__, self)
-
-        with (
-            pyro.plate("batch", x.shape[0]),
-            poutine.scale(scale=1.0 / x.shape[0]),
-        ):
-            z_loc, z_scale = self.encoder(x)
-
-            with poutine.scale(None, self.kl_weight):
-                pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-
-
-class _GaussianCCVAEMixin(_GaussianVAEMixin):
-    """Includes shared capabilities for GaussianCCVAE (Continuous CVAE) based models.
-
-    Methods
-    -------
-    model(*args)
-        Generative model for the gaussian CCVAE.
-
-    guide(*args)
-        Approximate variational posterior for the gaussian CCVAE.
-
-    """
-
-    @staticmethod
-    def _get_input_args(*args):
-        return torch.concatenate(args[:2], dim=-1)
-
-    @staticmethod
-    def _get_output_args(*args):
-        return args[0]
-
-    @staticmethod
-    def _get_label_args(*args):
-        return args[1]
-
-    @staticmethod
-    def _concat_lat_dims(labels, ref_list, dim):
-        idxs = labels.int()
-        return (
-            torch.tensor(
-                np.array(
-                    [
-                        np.concatenate([[ref_list[num]] * dim for num in elem])
-                        for elem in idxs
-                    ]
-                )
-            )
-            .type_as(labels)
-            .to(labels.device)
-        )
-
-    def model(self, *args):
-        """Generative model for the CCVAE.
-
-        Parameters
-        ----------
-        *args :
-            Static methods are used to pick the correct args from multiple args.
-        """
-        x, y = self._get_input_args(*args), self._get_label_args(*args)
-
-        pyro.module(self.__class__.__name__, self)
-
-        z_loc, z_scale = torch.zeros((x.shape[0], self.latent_dim)).to(
-            x.device
-        ), torch.ones((x.shape[0], self.latent_dim)).to(x.device)
-
-        w_loc, w_scale = self._concat_lat_dims(
-            y, self.w_locs, self.w_dim
-        ), self._concat_lat_dims(y, self.w_scales, self.w_dim)
-
-        with poutine.scale(None, self.z_kl_weight):
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-
-        with poutine.scale(None, self.w_kl_weight):
-            w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
-
-        x_loc, x_scale = self.decoder(torch.concatenate((z, w), dim=-1))
-
-        with poutine.scale(None, self.recon_weight):
-            pyro.sample(
-                "obs",
-                dist.Normal(x_loc, x_scale).to_event(1),
-                obs=self._get_output_args(*args),
-            )
-
-    def guide(self, *args):
-        """Approximate variational posterior for the CCVAE.
-
-        Parameters
-        ----------
-        *args :
-            Static methods are used to pick the correct args from multiple args.
-        """
-        x = self._get_input_args(*args)
-
-        pyro.module(self.__class__.__name__, self)
-
-        zw_loc, zw_scale = self.encoder(x)
-
-        z_loc, z_scale, w_loc, w_scale = (
-            zw_loc[..., : self.latent_dim],
-            zw_scale[..., : self.latent_dim],
-            zw_loc[..., self.latent_dim :],
-            zw_scale[..., self.latent_dim :],
-        )
-
-        with poutine.scale(None, self.z_kl_weight):
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-
-        with poutine.scale(None, self.w_kl_weight):
-            pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
-
-        return z
-
-
-class _GaussianHCCVAEMixin(_GaussianCCVAEMixin):
-    """Includes shared capabilities for GaussianHCCVAE (Hierarchical Continuous CVAE) based models.
-
-    Methods
-    -------
-    model(*args)
-        Generative model for the gaussian HCCVAE.
-
-    guide(*args)
-        Approximate variational posterior for the gaussian HCCVAE.
-
-    """
-
-    @staticmethod
-    def _get_input_args(*args):
-        return args[0]
-
-    def model(self, *args):
-        """Generative model for the HCCVAE.
-
-        Parameters
-        ----------
-        *args :
-            Static methods are used to pick the correct args from multiple args.
-        """
-        x, y = self._get_input_args(*args), self._get_label_args(*args)
-
-        pyro.module(self.__class__.__name__, self)
-
-        z_loc, z_scale = torch.zeros((x.shape[0], self.latent_dim)).to(
-            x.device
-        ), torch.ones((x.shape[0], self.latent_dim)).to(x.device)
-
-        w_loc, w_scale = self._concat_lat_dims(
-            y, self.w_locs, self.w_dim
-        ), self._concat_lat_dims(y, self.w_scales, self.w_dim)
-
-        with poutine.scale(None, self.z_kl_weight):
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-
-        with poutine.scale(None, self.w_kl_weight):
-            w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
-
-        x_loc, x_scale = self.decoder(torch.concatenate((z, w), dim=-1))
-
-        with poutine.scale(None, self.recon_weight):
-            pyro.sample(
-                "obs",
-                dist.Normal(x_loc, x_scale).to_event(1),
-                obs=self._get_output_args(*args),
-            )
-
-    def guide(self, *args):
-        """Approximate variational posterior for the HCCVAE.
-
-        Parameters
-        ----------
-        *args :
-            Static methods are used to pick the correct args from multiple args.
-        """
-        x = self._get_input_args(*args)
-
-        pyro.module(self.__class__.__name__, self)
-
-        z_loc, z_scale = self.encoder_z(x)
-
-        with poutine.scale(None, self.z_kl_weight):
-            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-
-        w_loc, w_scale = self.encoder_w(
-            torch.concatenate((z, self._get_label_args(*args)), dim=-1)
-        )
-
-        with poutine.scale(None, self.w_kl_weight):
-            pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
-
-        return z
-
-
-class _AdversarialMixin:
-    """Includes shared capabilities for models making use of adversarial information loss.
-
-    Methods
-    -------
-    adversarial(*args)
-        Calculates classifier / adversarial loss from inputs.
-
-    """
-
-    def _adversarial_from_encodings(self, z, y):
-        classification_loss_z, attr_track = 0, 0
-
-        for i in pyro.plate("label_dims", len(self.label_dims)):
-            classification_loss_z += dist.OneHotCategorical(
-                logits=getattr(self, f"classifiers_{i}")(z)
-            ).log_prob(y[..., attr_track : attr_track + self.label_dims[i]])
-
-            attr_track = attr_track + self.label_dims[i]
-
-        return classification_loss_z
-
-    def classification(self, *args):
-        """Calculates classifier / adversarial loss from inputs."""
-        x = self._get_input_args(*args)
-
-        zw_loc, zw_scale = self.encoder(x)
-        z_loc, z_scale = (
-            zw_loc[..., : self.latent_dim],
-            zw_scale[..., : self.latent_dim],
-        )
-
-        z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
-
-        return -1 * self._adversarial_from_encodings(z, self._get_label_args(*args))
-
-
-class GaussianVAE(_GaussianVAEMixin, nn.Module):
+class GaussianVAE(_VAEMixin, nn.Module):
     """Base VAE class.
 
     Parameters
@@ -423,8 +73,11 @@ class GaussianVAE(_GaussianVAEMixin, nn.Module):
     def _get_output_args(*args):
         return args[0]
 
+    def _reconstruct(self, z, *args):
+        return dist.Normal(*self.decoder(self._get_latent_args(z, *args)))
 
-class GaussianCVAE(_GaussianVAEMixin, nn.Module):
+
+class GaussianCVAE(GaussianVAE, nn.Module):
     """Conditional VAE class.
 
     Parameters
@@ -468,11 +121,8 @@ class GaussianCVAE(_GaussianVAEMixin, nn.Module):
         recon_weight: float = 20.0,
         kl_weight: float = 1.0,
     ):
-        nn.Module.__init__(self)
-        self.latent_dim, self.recon_weight, self.kl_weight = (
-            latent_dim,
-            recon_weight,
-            kl_weight,
+        GaussianVAE.__init__(
+            self, in_dim, hidden_dim, num_layers, latent_dim, recon_weight, kl_weight
         )
 
         self.encoder = GaussianMLP(
@@ -495,7 +145,7 @@ class GaussianCVAE(_GaussianVAEMixin, nn.Module):
         return args[0]
 
 
-class GaussianCCVAE(_GaussianCCVAEMixin, nn.Module):
+class GaussianCCVAE(_CCVAEMixin, nn.Module):
     """Continuous Conditional VAE class.
 
     Parameters
@@ -558,22 +208,31 @@ class GaussianCCVAE(_GaussianCCVAEMixin, nn.Module):
         nn.Module.__init__(self)
         (
             self.latent_dim,
+            self.in_dim,
             self.w_dim,
             self.label_dims,
             self.recon_weight,
             self.z_kl_weight,
             self.w_kl_weight,
-        ) = (latent_dim, w_dim, label_dims, recon_weight, z_kl_weight, w_kl_weight)
+        ) = (
+            latent_dim,
+            in_dim,
+            w_dim,
+            label_dims,
+            recon_weight,
+            z_kl_weight,
+            w_kl_weight,
+        )
 
         self.encoder = GaussianMLP(
-            in_dim + sum(self.label_dims),
+            self.in_dim + sum(self.label_dims),
             [hidden_dim] * num_layers,
             self.latent_dim + sum(self.label_dims) * self.w_dim,
         )
         self.decoder = GaussianMLP(
             self.latent_dim + sum(self.label_dims) * self.w_dim,
             [hidden_dim] * num_layers,
-            in_dim,
+            self.in_dim,
         )
 
         if w_locs is None:
@@ -581,6 +240,9 @@ class GaussianCCVAE(_GaussianCCVAEMixin, nn.Module):
         if w_scales is None:
             w_scales = [0.1, 1.0]
         self.w_locs, self.w_scales = w_locs, w_scales
+
+    def _reconstruct(self, zw):
+        return dist.Normal(*self.decoder(zw))
 
     def model(self, *args):
         """Generative model for the CCVAE.
@@ -598,7 +260,7 @@ class GaussianCCVAE(_GaussianCCVAEMixin, nn.Module):
             pyro.plate("batch", x.shape[0]),
             poutine.scale(scale=1.0 / x.shape[0]),
         ):
-            _GaussianCCVAEMixin.model(self, *args)
+            _CCVAEMixin.model(self, *args)
 
     def guide(self, *args):
         """Approximate variational posterior for the CCVAE.
@@ -616,7 +278,7 @@ class GaussianCCVAE(_GaussianCCVAEMixin, nn.Module):
             pyro.plate("batch", x.shape[0]),
             poutine.scale(scale=1.0 / x.shape[0]),
         ):
-            _GaussianCCVAEMixin.guide(self, *args)
+            _CCVAEMixin.guide(self, *args)
 
 
 class GaussianCSVAE(GaussianCCVAE, _AdversarialMixin, nn.Module):
@@ -686,7 +348,6 @@ class GaussianCSVAE(GaussianCCVAE, _AdversarialMixin, nn.Module):
         w_kl_weight: float = 1.0,
         adversarial_weight: float = 1.0,
     ):
-        nn.Module.__init__(self)
         GaussianCCVAE.__init__(
             self,
             in_dim,
@@ -727,7 +388,7 @@ class GaussianCSVAE(GaussianCCVAE, _AdversarialMixin, nn.Module):
             pyro.plate("batch", x.shape[0]),
             poutine.scale(scale=1.0 / x.shape[0]),
         ):
-            _GaussianCCVAEMixin.model(self, *args)
+            _CCVAEMixin.model(self, *args)
 
             ys, attr_track = [], 0
 
@@ -758,7 +419,7 @@ class GaussianCSVAE(GaussianCCVAE, _AdversarialMixin, nn.Module):
             pyro.plate("batch", x.shape[0]),
             poutine.scale(scale=1.0 / x.shape[0]),
         ):
-            z = _GaussianCCVAEMixin.guide(self, *args)
+            z = _CCVAEMixin.guide(self, *args)
 
             with poutine.scale(None, self.adversarial_weight):
                 pyro.factor(
@@ -768,7 +429,7 @@ class GaussianCSVAE(GaussianCCVAE, _AdversarialMixin, nn.Module):
                 )
 
 
-class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
+class GaussianHCCVAE(_HCCVAEMixin, nn.Module):
     """Hierarchical Continuous Conditional VAE class.
 
     Parameters
@@ -790,12 +451,6 @@ class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
 
     w_dim : `int`, default: 2
         Size of the latent variable `w`, assumed to be correlated with condition labels
-
-    w_locs : `list` of `float`, default: [0., 3.]
-        Prior means for the corresponding label dimension being 0 or 1 respectively.
-
-    w_scales : `list` of `float`, default: [0.1, 1.]
-        Prior variances for the corresponding label dimension being 0 or 1 respectively.
 
     recon_weight : `float`, default: 20.
         Weight of the reconstruction loss for the HCCVAE.
@@ -821,9 +476,7 @@ class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 2,
         latent_dim: int = 10,
-        w_dim: int = 2,
-        w_locs: list = None,
-        w_scales: list = None,
+        w_dim: int = 10,
         recon_weight: float = 20.0,
         z_kl_weight: float = 0.2,
         w_kl_weight: float = 1.0,
@@ -853,27 +506,135 @@ class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
         self.encoder_w = GaussianMLP(
             self.latent_dim + sum(self.label_dims),
             [hidden_dim] * num_layers,
-            sum(self.label_dims) * self.w_dim,
+            self.w_dim,
+        )
+        self.decoder_w = GaussianMLP(
+            self.latent_dim + sum(self.label_dims),
+            [hidden_dim] * num_layers,
+            self.w_dim,
+        )
+        self.decoder = GaussianMLP(
+            self.w_dim,
+            [hidden_dim] * num_layers,
+            in_dim,
+        )
+
+    def model(self, *args):
+        """Generative model for the HCCVAE.
+
+        Parameters
+        ----------
+        *args :
+            Static methods are used to pick the correct args from multiple args.
+        """
+        x = self._get_input_args(*args)
+
+        pyro.module(self.__class__.__name__, self)
+
+        with (
+            pyro.plate("batch", x.shape[0]),
+            poutine.scale(scale=1.0 / x.shape[0]),
+        ):
+            _HCCVAEMixin.model(self, *args)
+
+    def guide(self, *args):
+        """Approximate variational posterior for the HCCVAE.
+
+        Parameters
+        ----------
+        *args :
+            Static methods are used to pick the correct args from multiple args.
+        """
+        x = self._get_input_args(*args)
+
+        pyro.module(self.__class__.__name__, self)
+
+        with (
+            pyro.plate("batch", x.shape[0]),
+            poutine.scale(scale=1.0 / x.shape[0]),
+        ):
+            _HCCVAEMixin.guide(self, *args)
+
+    def _reconstruct(self, w):
+        return dist.Normal(*self.decoder(w))
+
+
+class GaussianHCCVAEDL(GaussianHCCVAE, nn.Module):
+    """Hierarchical Continuous Conditional VAE class with additional loss on the solely common component.
+
+    Parameters
+    ----------
+    in_dim : `int`
+        Size of the input / output space.
+
+    label_dims : array-like of `int`
+        List where each element is the number of subconditions for the given condition group.
+
+    hidden_dim : `int` or array-like, default: 128
+        Size of the hidden layers.
+
+    num_layers : `int` or array-like, default: 2
+        Number of hidden layers.
+
+    latent_dim : `int`, default: 10
+        Size of the latent variable `z`, assumed to be decorrelated from condition labels.
+
+    w_dim : `int`, default: 2
+        Size of the latent variable `w`, assumed to be correlated with condition labels
+
+    recon_weight : `float`, default: 20.
+        Weight of the reconstruction loss for the HCCVAE.
+
+    z_kl_weight : `float`, default: 0.2
+        Weight of the KL divergence loss for the common latent variable of the HCCVAE.
+
+    w_kl_weight : `float`, default: 1.
+        Weight of the KL divergence loss for the conditional latent variable of the HCCVAE.
+
+
+    Methods
+    -------
+    __init__(in_dim, label_dims, hidden_dim=128, num_layers=2, latent_dim=10)
+        Constructor for the CCVAE.
+
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        label_dims,
+        hidden_dim: int = 128,
+        num_layers: int = 2,
+        latent_dim: int = 10,
+        w_dim: int = 10,
+        recon_weight: float = 20.0,
+        z_kl_weight: float = 0.2,
+        w_kl_weight: float = 1.0,
+    ):
+        nn.Module.__init__(self)
+        GaussianHCCVAE.__init__(
+            self,
+            in_dim,
+            label_dims,
+            hidden_dim,
+            num_layers,
+            latent_dim,
+            w_dim,
+            recon_weight,
+            z_kl_weight,
+            w_kl_weight,
         )
         self.decoder_z = GaussianMLP(
             self.latent_dim,
             [hidden_dim] * num_layers,
             in_dim,
         )
-        self.decoder = GaussianMLP(
-            self.latent_dim + sum(self.label_dims) * self.w_dim,
-            [hidden_dim] * num_layers,
-            in_dim,
-        )
 
-        if w_locs is None:
-            w_locs = [0.0, 3.0]
-        if w_scales is None:
-            w_scales = [0.1, 1.0]
-        self.w_locs, self.w_scales = w_locs, w_scales
+    def _reconstruct_z(self, z):
+        return dist.Normal(*self.decoder_z(z))
 
     def model(self, *args):
-        """Generative model for the CCVAE.
+        """Generative model for the HCCVAE with additional loss.
 
         Parameters
         ----------
@@ -888,25 +649,14 @@ class GaussianHCCVAE(_GaussianHCCVAEMixin, nn.Module):
             pyro.plate("batch", x.shape[0]),
             poutine.scale(scale=1.0 / x.shape[0]),
         ):
-            _GaussianHCCVAEMixin.model(self, *args)
+            z = _HCCVAEMixin.model(self, *args)
 
-    def guide(self, *args):
-        """Approximate variational posterior for the CCVAE.
-
-        Parameters
-        ----------
-        *args :
-            Static methods are used to pick the correct args from multiple args.
-        """
-        x = self._get_input_args(*args)
-
-        pyro.module(self.__class__.__name__, self)
-
-        with (
-            pyro.plate("batch", x.shape[0]),
-            poutine.scale(scale=1.0 / x.shape[0]),
-        ):
-            _GaussianHCCVAEMixin.guide(self, *args)
+            with poutine.scale(None, self.recon_weight):
+                pyro.sample(
+                    "obs_from_z",
+                    self._reconstruct_z(z).to_event(1),
+                    obs=self._get_output_args(*args),
+                )
 
 
 class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
@@ -931,12 +681,6 @@ class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
 
     w_dim : `int`, default: 2
         Size of the latent variable `w`, assumed to be correlated with condition labels
-
-    w_locs : `list` of `float`, default: [0., 3.]
-        Prior means for the corresponding label dimension being 0 or 1 respectively.
-
-    w_scales : `list` of `float`, default: [0.1, 1.]
-        Prior variances for the corresponding label dimension being 0 or 1 respectively.
 
     recon_weight : `float`, default: 20.
         Weight of the reconstruction loss for the HCCVAE.
@@ -967,15 +711,12 @@ class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 2,
         latent_dim: int = 10,
-        w_dim: int = 2,
-        w_locs: list = None,
-        w_scales: list = None,
+        w_dim: int = 10,
         recon_weight: float = 20.0,
         z_kl_weight: float = 0.2,
         w_kl_weight: float = 1.0,
         adversarial_weight: float = 1.0,
     ):
-        nn.Module.__init__(self)
         GaussianHCCVAE.__init__(
             self,
             in_dim,
@@ -984,8 +725,6 @@ class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
             num_layers,
             latent_dim,
             w_dim,
-            w_locs,
-            w_scales,
             recon_weight,
             z_kl_weight,
             w_kl_weight,
@@ -1016,7 +755,7 @@ class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
             pyro.plate("batch", x.shape[0]),
             poutine.scale(scale=1.0 / x.shape[0]),
         ):
-            _GaussianHCCVAEMixin.model(self, *args)
+            _HCCVAEMixin.model(self, *args)
 
             ys, attr_track = [], 0
 
@@ -1047,7 +786,7 @@ class GaussianHCSVAE(GaussianHCCVAE, _AdversarialMixin, nn.Module):
             pyro.plate("batch", x.shape[0]),
             poutine.scale(scale=1.0 / x.shape[0]),
         ):
-            z = _GaussianHCCVAEMixin.guide(self, *args)
+            z = _HCCVAEMixin.guide(self, *args)
 
             with poutine.scale(None, self.adversarial_weight):
                 pyro.factor(
