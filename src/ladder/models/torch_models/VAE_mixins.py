@@ -273,15 +273,20 @@ class _HCCVAEMixin(_CCVAEMixin):
         with poutine.scale(None, self.z_kl_weight):
             z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
 
-        w_loc, w_scale = self.decoder_w(torch.concatenate((z, y), dim=-1))
+        w_loc, w_scale = self._concat_lat_dims(
+            y, self.w_locs, self.w_dim
+        ), self._concat_lat_dims(y, self.w_scales, self.w_dim)
 
         with poutine.scale(None, self.w_kl_weight):
             w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
 
+        rho_loc, rho_scale = self.decoder_rho(torch.concatenate((z, w), dim=-1))
+        rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+
         with poutine.scale(None, self.recon_weight):
             pyro.sample(
                 "obs",
-                self._reconstruct(w).to_event(1),
+                self._reconstruct(rho).to_event(1),
                 obs=self._get_output_args(*args),
             )
 
@@ -299,7 +304,89 @@ class _HCCVAEMixin(_CCVAEMixin):
 
         pyro.module(self.__class__.__name__, self)
 
-        z_loc, z_scale = self.encoder_z(x)
+        rho_loc, rho_scale = self.encoder_rho(x)
+        rho = pyro.sample("rho", dist.Normal(rho_loc, rho_scale).to_event(1))
+
+        z_loc, z_scale = self.encoder_z(rho)
+
+        with poutine.scale(None, self.z_kl_weight):
+            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+
+        w_loc, w_scale = self.encoder_w(
+            torch.concatenate((rho, self._get_label_args(*args)), dim=-1)
+        )
+
+        with poutine.scale(None, self.w_kl_weight):
+            pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+
+        return z
+
+
+class _MRVAEMixin(_CCVAEMixin):
+    """Includes shared capabilities for MRVAE (Multi Resolution VAE) based models.
+
+    Motivation: https://www.biorxiv.org/content/10.1101/2022.10.04.510898v2
+
+    Methods
+    -------
+    model(*args)
+        Generative model for the MRVAE.
+
+    guide(*args)
+        Approximate variational posterior for the MRVAE.
+
+    """
+
+    @staticmethod
+    def _get_input_args(*args):
+        return args[0]
+
+    def model(self, *args):
+        """Generative model for the MRVAE.
+
+        Parameters
+        ----------
+        *args :
+            Static methods are used to pick the correct args from multiple args.
+        """
+        x = self._get_input_args(*args)
+
+        pyro.module(self.__class__.__name__, self)
+
+        z_loc, z_scale = torch.zeros((x.shape[0], self.latent_dim)).to(
+            x.device
+        ), torch.ones((x.shape[0], self.latent_dim)).to(x.device)
+
+        with poutine.scale(None, self.z_kl_weight):
+            z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))
+
+        w_loc, w_scale = z, torch.ones((x.shape[0], self.latent_dim)).to(x.device)
+
+        with poutine.scale(None, self.w_kl_weight):
+            w = pyro.sample("w", dist.Normal(w_loc, w_scale).to_event(1))
+
+        with poutine.scale(None, self.recon_weight):
+            pyro.sample(
+                "obs",
+                self._reconstruct(w).to_event(1),
+                obs=self._get_output_args(*args),
+            )
+
+        return z
+
+    def guide(self, *args):
+        """Approximate variational posterior for the MRVAE.
+
+        Parameters
+        ----------
+        *args :
+            Static methods are used to pick the correct args from multiple args.
+        """
+        x = self._get_input_args(*args)
+
+        pyro.module(self.__class__.__name__, self)
+
+        z_loc, z_scale = self.encoder(x)
 
         with poutine.scale(None, self.z_kl_weight):
             z = pyro.sample("z", dist.Normal(z_loc, z_scale).to_event(1))

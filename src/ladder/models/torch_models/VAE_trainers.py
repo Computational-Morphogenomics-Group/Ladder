@@ -1,5 +1,6 @@
 """The VAE trainers module houses trainer classes used with VAE variants."""
 
+import copy
 import warnings
 from typing import Literal
 
@@ -50,7 +51,12 @@ class _BasePyroTrainerMixin:
         verbose: bool = True,
     ):
         self.reset()
-        self.train_losses, self.test_losses, self.epochs = [], [], 0
+        self.train_losses, self.test_losses, self.epochs, self.predictive = (
+            [],
+            [],
+            0,
+            None,
+        )
         self.verbose = verbose
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -89,9 +95,20 @@ class _BasePyroTrainerMixin:
                 return None
 
     def _predictive_setup(self):
-        self.predictive = Predictive(
-            uncondition(self.model.model), guide=self.model.guide, num_samples=1
-        )
+        try:
+            self.predictive = Predictive(
+                uncondition(self.best_model.model),
+                guide=self.best_model.guide,
+                num_samples=1,
+            )
+
+        except AttributeError:
+            if self.verbose:
+                print("Best model not tracked, defaulting to model from last epoch.")
+
+            self.predictive = Predictive(
+                uncondition(self.model.model), guide=self.model.guide, num_samples=1
+            )
 
     def train_single_epoch(self):
         """Trains the attached model for a single pass through the dataset."""
@@ -233,6 +250,7 @@ class _ThresholdMixin:
     def __init__(self, convergence_threshold, patience):
         self.convergence_threshold = convergence_threshold
         self.patience, self.max_patience = 0, patience
+        self.best_model = copy.deepcopy(self.model)
 
     def is_stop_condition(self):
         """Stop when patience runs out without improvement."""
@@ -246,6 +264,8 @@ class _ThresholdMixin:
                 > self.convergence_threshold
             ):
                 self.patience = 0
+                del self.best_model
+                self.best_model = copy.deepcopy(self.model)
 
             else:
                 self.patience += 1
@@ -295,6 +315,7 @@ class ThresholdPyroTrainer(_ThresholdMixin, _BasePyroTrainerMixin):
     def reset(self):
         """Resets Pyro parameter storage for continued training."""
         _BasePyroTrainerMixin.reset(self)
+        self.best_model = None
         self.patience = 0
 
 
