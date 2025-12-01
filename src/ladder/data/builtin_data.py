@@ -24,6 +24,10 @@ DATA_PATHS = {
         "https://www.dropbox.com/scl/fi/so1c360lasj39j59t2bgw/mascharak_2022_tn_wh.h5ad?rlkey=ksuj8ok974kgua6k4raw48t4i&st=kbd1eh7h&dl=1",
         "mascharak_2022_tn_wh.h5ad",
     ],
+    "Snrnaseq" : [
+       "https://www.dropbox.com/scl/fi/l9egx3c8f8ue4eg1c9szx/snrnaseq_minimal.h5ad?rlkey=f5hwr4qv3d5kul7iat90i044x&st=1bhryrmw&dl=1",
+       "snrnaseq_minimal.h5ad",
+    ], 
 }
 
 
