@@ -32,7 +32,7 @@ Patches takes as input a collection of observations or gene expression profiles 
 
 ## Installation
 - You will need Python 3.10 or newer in your system. If you don't have a Python environment setup, we recommend installing it through [Mambaforge](https://github.com/conda-forge/miniforge#mambaforge).
-  
+
 - Install everything with pip, either through PyPI or GitHub:
 ```
 pip install scladder
@@ -87,7 +87,7 @@ See the [changelog][changelog].
 
 ## Issues and contact
 
-For additional questions, please reach out to: 
+For additional questions, please reach out to:
 - ob2391@columbia.edu
 - bmd2151@columbia.edu
 
